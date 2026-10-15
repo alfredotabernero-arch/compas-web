@@ -47,7 +47,11 @@
   const refrescar = () => pintar();
 
   /* ======================= Biblioteca ======================= */
-  const EJEMPLOS = ['01 - Escala de Re mayor', '02 - Arpegios en Sol mayor', '03 - Campanero (tradicional)', '04 - Oda a la alegria (Beethoven)', '05 - Ritmos en La mayor'];
+  const EJEMPLOS = {
+    pua: ['01 - Escala de Re mayor', '02 - Arpegios en Sol mayor', '03 - Campanero (tradicional)', '04 - Oda a la alegria (Beethoven)', '05 - Ritmos en La mayor'],
+    cello: ['06 - Violonchelo - Cuerdas al aire', '07 - Violonchelo - Escala de Do mayor (2 octavas)', '08 - Violonchelo - Escala de Re mayor (corcheas)',
+      '09 - Violonchelo - Arpegios en Sol mayor', '10 - Violonchelo - Oda a la alegria (Beethoven)']
+  };
 
   /** Lee el título y el compositor de un MusicXML sin dibujarlo */
   async function leerInfo(datos) {
@@ -86,9 +90,18 @@
     inp.click();
   }
   async function cargarEjemplos() {
-    for (const n of EJEMPLOS) {
+    const r = await u.modal('Ejemplos', h('p', { style: { margin: 0 } }, '¿Para qué instrumento? Los de violonchelo van en clave de fa, desde el Do grave.'), [
+      { texto: 'Cancelar', accion: () => null },
+      { texto: 'Bandurria y laúd', accion: () => 'pua' },
+      { texto: 'Violonchelo', clase: 'primario', accion: () => 'cello' }
+    ]);
+    if (!r) return;
+    const yaHay = new Set((await DB.all('partituras')).map(p => p.archivo));
+    for (const n of EJEMPLOS[r]) {
+      if (yaHay.has(n)) continue;
       const xml = await (await fetch('ejemplos/' + encodeURIComponent(n) + '.musicxml')).text();
-      await anadir(xml, n + '.musicxml', 'xml');
+      const p = await anadir(xml, n + '.musicxml', 'xml');
+      p.archivo = n; await DB.put('partituras', p);
     }
     u.toast('Ejemplos añadidos');
     refrescar();
@@ -119,7 +132,7 @@
         h('div.crece', h('b', p.titulo), h('div.mini.tenue', [p.compositor, p.compases ? p.compases + ' compases' : null].filter(Boolean).join(' · '))),
         p.ultimo && p.ultimo.puntuacion != null ? h('span.c-nota', { style: { background: color(p.ultimo.puntuacion) } }, p.ultimo.puntuacion + '%') : null,
         icono('adelante')))));
-      if (!lista.some(p => /^(Escala de Re mayor|Campanero)$/.test(p.titulo))) {
+      if (lista.filter(p => p.archivo).length < 10) {
         main.appendChild(h('p.mini.tenue', { style: { textAlign: 'center' } }, h('button.enlace', { onclick: cargarEjemplos }, 'Añadir los ejemplos')));
       }
     }
