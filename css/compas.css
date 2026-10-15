@@ -42,3 +42,23 @@ main { padding-bottom: 30px; }
 .c-rnum span { font-size: .75rem; color: var(--tinta-2); }
 .c-rfila { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--borde); }
 .c-rfila i { width: 12px; height: 12px; border-radius: 4px; }
+
+/* ---------- Pantalla de bienvenida (colores y logo de Compás) ---------- */
+#bienvenida { background: linear-gradient(135deg, #064E47, #0B6E66 30%, #0E9384 55%, #14B8A6 80%, #FDBA4D); background-size: 300% 300%; }
+.bv-logo { background: linear-gradient(135deg, #14B8A6, #0B6E66); box-shadow: 0 20px 50px rgba(4, 50, 45, .4); }
+.bv-logo svg { width: 104px; height: 104px; }
+.bv-logo .pauta { stroke: rgba(255,255,255,.35); stroke-width: 10; stroke-linecap: round; stroke-dasharray: 400; stroke-dashoffset: 400; animation: bv-trazo .7s ease-out forwards; }
+.bv-logo .pauta:nth-of-type(1) { animation-delay: .3s; } .bv-logo .pauta:nth-of-type(2) { animation-delay: .38s; } .bv-logo .pauta:nth-of-type(3) { animation-delay: .46s; }
+.bv-logo .pauta:nth-of-type(4) { animation-delay: .54s; } .bv-logo .pauta:nth-of-type(5) { animation-delay: .62s; }
+.bv-logo .barra { stroke: #fff; stroke-width: 16; stroke-linecap: round; stroke-dasharray: 220; stroke-dashoffset: 220; animation: bv-trazo .45s .75s ease-out forwards; }
+.bv-logo .nota { fill: #fff; stroke: #fff; stroke-width: 14; stroke-linecap: round; transform-origin: 240px 300px; transform: translateY(-60px); opacity: 0; animation: bv-cae .55s 1s cubic-bezier(.3,1.6,.5,1) forwards; }
+.bv-logo .nota path { fill: none; }
+.bv-logo .visto circle { fill: #FDBA4D; }
+.bv-logo .visto path { fill: none; stroke: #0B6E66; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+.bv-logo .visto { transform-origin: 330px 320px; transform: scale(0); animation: bv-pop .4s 1.5s cubic-bezier(.2,1.8,.4,1) forwards; }
+@keyframes bv-cae { to { transform: none; opacity: 1; } }
+.bv-titulo span { text-shadow: 0 6px 24px rgba(4,50,45,.35); }
+@media (prefers-reduced-motion: reduce) {
+  .bv-logo .pauta, .bv-logo .barra { stroke-dashoffset: 0 !important; }
+  .bv-logo .nota, .bv-logo .visto { transform: none !important; opacity: 1 !important; }
+}

@@ -353,7 +353,9 @@
           h('div.fila', h('span.crece', A.pitch.nombreLa() + ' de referencia (Hz)'), laIn),
           h('div.fila', { style: { marginTop: '12px' } }, h('span.crece', 'Retraso del micrófono'), retTxt), ret,
           h('p.mini.tenue', { style: { margin: '4px 0 0' } }, 'Si Compás te dice casi siempre que te retrasas aunque vas a tiempo, súbelo; si dice que te adelantas, bájalo. Compás también se adapta solo mientras tocas.')),
-        h('section.tarjeta', h('h2', 'Apariencia'), seg([['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Oscuro']], aj.tema, async v => { aj.tema = v; await guardarAjustes(); })),
+        h('section.tarjeta', h('h2', 'Apariencia'), seg([['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Oscuro']], aj.tema, async v => { aj.tema = v; await guardarAjustes(); }),
+          h('div', { style: { marginTop: '12px' } }, inter('Pantalla de bienvenida al abrir', A.bienvenida.activa(), v => A.bienvenida.poner(v))),
+          h('button.enlace', { onclick: () => A.bienvenida.ver() }, 'Ver la pantalla de bienvenida')),
         h('section.tarjeta', h('h2', 'Acerca de Compás'),
           h('p', { style: { marginTop: 0 } }, 'Compás escucha cómo tocas una partitura en MusicXML y te dice, nota a nota, qué ha salido bien. Funciona sin conexión: el sonido no sale de tu aparato.'),
           h('p.mini.tenue', 'Versión ' + A.VERSION + ' (piloto) · Creado por ', h('b', 'Alfredo Tabernero Martínez')),
@@ -367,12 +369,46 @@
     }
   };
 
+  /* ======================= Bienvenida ======================= */
+  const T0 = performance.now();
+  function cerrarBienvenida(inicio = T0) {
+    const bv = document.getElementById('bienvenida');
+    if (!bv || bv.classList.contains('oculta')) return;
+    const v = document.getElementById('bv-version');
+    if (v) v.textContent = 'versión ' + A.VERSION;
+    let hecho = false;
+    const salir = () => {
+      if (hecho) return; hecho = true;
+      try { sessionStorage.setItem('compasBienvenida', '1'); } catch (e) {}
+      bv.classList.add('sale');
+      setTimeout(() => bv.classList.add('oculta'), 600);
+    };
+    bv.addEventListener('click', salir);
+    setTimeout(salir, Math.max(300, 6000 - (performance.now() - inicio)));
+  }
+  A.bienvenida = {
+    activa() { try { return !localStorage.getItem('compasSinBienvenida'); } catch (e) { return true; } },
+    poner(si) { try { si ? localStorage.removeItem('compasSinBienvenida') : localStorage.setItem('compasSinBienvenida', '1'); } catch (e) {} },
+    ver() {
+      try { sessionStorage.removeItem('compasBienvenida'); } catch (e) {}
+      const bv = document.getElementById('bienvenida');
+      if (!bv) return;
+      const nuevo = bv.cloneNode(true);   // reinicia las animaciones
+      nuevo.className = '';
+      bv.replaceWith(nuevo);
+      cerrarBienvenida(performance.now());
+    }
+  };
+
   /* ======================= Arranque ======================= */
   async function arrancar() {
+    cerrarBienvenida();
     await cargarAjustes();
     window.addEventListener('hashchange', pintar);
     await pintar();
     if (A.nativo && A.nativo.App) A.nativo.App.addListener('backButton', () => {
+      const bv = document.getElementById('bienvenida');
+      if (bv && !bv.classList.contains('oculta') && !bv.classList.contains('sale')) { bv.click(); return; }
       if (u.$('.modal-fondo.show')) { u.$$('.modal-fondo.show').pop().click(); return; }
       if (ruta().vista === 'biblioteca') A.nativo.cerrar(); else history.back();
     });
