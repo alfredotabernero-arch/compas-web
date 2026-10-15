@@ -50,7 +50,8 @@
   const EJEMPLOS = {
     pua: ['01 - Escala de Re mayor', '02 - Arpegios en Sol mayor', '03 - Campanero (tradicional)', '04 - Oda a la alegria (Beethoven)', '05 - Ritmos en La mayor'],
     cello: ['06 - Violonchelo - Cuerdas al aire', '07 - Violonchelo - Escala de Do mayor (2 octavas)', '08 - Violonchelo - Escala de Re mayor (corcheas)',
-      '09 - Violonchelo - Arpegios en Sol mayor', '10 - Violonchelo - Oda a la alegria (Beethoven)']
+      '09 - Violonchelo - Arpegios en Sol mayor', '10 - Violonchelo - Oda a la alegria (Beethoven)',
+      '11 - Violonchelo - Dotzauer, estudio 4', '12 - Violonchelo - Dotzauer, estudio 5', '13 - Violonchelo - Lee, op. 31 n. 1', '14 - Violonchelo - Lee, op. 31 n. 4 (Scherzo)']
   };
 
   /** Lee el título y el compositor de un MusicXML sin dibujarlo */
@@ -90,7 +91,7 @@
     inp.click();
   }
   async function cargarEjemplos() {
-    const r = await u.modal('Ejemplos', h('p', { style: { margin: 0 } }, '¿Para qué instrumento? Los de violonchelo van en clave de fa, desde el Do grave.'), [
+    const r = await u.modal('Ejemplos', h('p', { style: { margin: 0 } }, '¿Para qué instrumento? Los de violonchelo van en clave de fa, desde el Do grave, e incluyen estudios de Dotzauer y Lee.'), [
       { texto: 'Cancelar', accion: () => null },
       { texto: 'Bandurria y laúd', accion: () => 'pua' },
       { texto: 'Violonchelo', clase: 'primario', accion: () => 'cello' }
