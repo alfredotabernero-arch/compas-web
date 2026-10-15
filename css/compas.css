@@ -1,0 +1,44 @@
+/* Compás — sobre la base de estilos de Atril, con su propio color */
+:root { --primario: #0E9384; --primario-osc: #0B6E66; --primario-suave: #DDF4F1; --acento: var(--primario); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --primario: #2DD4BF; --primario-osc: #14B8A6; --primario-suave: #123B38; } }
+:root[data-theme="dark"] { --primario: #2DD4BF; --primario-osc: #14B8A6; --primario-suave: #123B38; }
+body { padding-bottom: 24px; }
+main { padding-bottom: 30px; }
+.c-hero { --c: #0E9384; background: linear-gradient(135deg, #14B8A6, #0B6E66) !important; }
+.c-hero .hero-titulo { font-size: 1.35rem; line-height: 1.25; }
+.c-lista { display: grid; gap: 10px; }
+.c-item { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 18px; background: var(--superficie); box-shadow: var(--sombra); color: var(--tinta); text-decoration: none; }
+.c-item b { display: block; }
+.c-item > svg { width: 18px; height: 18px; color: var(--tinta-3); flex: none; }
+.c-item-ic { flex: none; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--primario-suave); color: var(--primario); }
+.c-item-ic svg { width: 22px; height: 22px; }
+.c-nota { flex: none; color: #fff; font-weight: 900; font-size: .85rem; padding: 4px 8px; border-radius: 10px; }
+.c-controles .c-fila { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+.c-tramo .num { width: 74px; text-align: center; }
+.c-tempo { margin-left: auto; text-align: center; }
+.c-tempo small { display: block; font-size: .7rem; }
+.c-bpm { font-size: 1.6rem; min-width: 52px; text-align: center; cursor: default; }
+.c-tocar { width: 100%; min-height: 54px; font-size: 1.15rem; justify-content: center; }
+.c-estado { text-align: center; font-size: .85rem; color: var(--tinta-2); margin-top: 6px; min-height: 1.2em; }
+.c-hoja { padding: 10px; }
+.c-marco { max-height: 62vh; overflow: auto; border-radius: 12px; background: #fff; -webkit-overflow-scrolling: touch; }
+.c-partitura svg { display: block; }
+.c-ley { margin: 0; font-size: .7rem; gap: 8px; }
+.c-partitura .c-fuera path, .c-partitura .c-fuera rect { opacity: .28; }
+.c-partitura .n-actual path, .c-partitura .n-actual rect { fill: #3D7BFF !important; stroke: #3D7BFF !important; }
+.c-partitura .n-bien path, .c-partitura .n-bien rect { fill: #16A34A !important; stroke: #16A34A !important; }
+.c-partitura .n-tiempo path, .c-partitura .n-tiempo rect { fill: #E0A100 !important; stroke: #E0A100 !important; }
+.c-partitura .n-mal path, .c-partitura .n-mal rect { fill: #EF4444 !important; stroke: #EF4444 !important; }
+.c-partitura .n-falta path, .c-partitura .n-falta rect { fill: #B4AFCB !important; stroke: #B4AFCB !important; }
+.c-cuenta { position: fixed; inset: 0; display: none; place-items: center; font-size: 9rem; font-weight: 900; color: var(--primario); background: color-mix(in srgb, var(--fondo) 70%, transparent); z-index: 800; pointer-events: none; }
+.c-cuenta.on { display: grid; }
+.c-informe .c-rcab { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+.c-informe .c-rcab b { font-size: 1.15rem; }
+.c-circulo { flex: none; width: 78px; height: 78px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.8rem; font-weight: 900; }
+.c-circulo small { font-size: .85rem; }
+.c-rnum { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.c-rnum > div { background: var(--superficie-2); border-radius: 14px; padding: 10px; text-align: center; }
+.c-rnum b { display: block; font-size: 1.4rem; }
+.c-rnum span { font-size: .75rem; color: var(--tinta-2); }
+.c-rfila { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--borde); }
+.c-rfila i { width: 12px; height: 12px; border-radius: 4px; }
