@@ -177,5 +177,106 @@
     };
   }
 
-  A.practica = { crear, contexto, clic };
+  /* ---------- «¿Cómo suena?»: la partitura tocada por el propio aparato ---------- */
+  const frec = (midi, la) => la * Math.pow(2, (midi - 69) / 12);
+
+  /** Una nota sintetizada. timbre 'pua' (bandurria, laúd: ataque seco que se apaga) o 'arco' (violonchelo: sostenida, con vibrato) */
+  function sintetizar(c, salida, f, t, dur, timbre) {
+    const g = c.createGain(), filtro = c.createBiquadFilter();
+    filtro.type = 'lowpass';
+    g.connect(salida); filtro.connect(g);
+    const osc = [];
+    if (timbre === 'arco') {
+      const a = c.createOscillator(), b = c.createOscillator(), bg = c.createGain();
+      a.type = 'sawtooth'; b.type = 'triangle'; a.frequency.value = f; b.frequency.value = f; bg.gain.value = 0.6;
+      a.connect(filtro); b.connect(bg); bg.connect(filtro);
+      filtro.frequency.value = Math.min(2600, f * 7); filtro.Q.value = 0.8;
+      // vibrato suave a partir de la mitad de la nota (solo en las largas)
+      if (dur > 0.35) {
+        const lfo = c.createOscillator(), lg = c.createGain();
+        lfo.frequency.value = 5.4; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(f * 0.004, t + Math.min(0.5, dur * 0.5));
+        lfo.connect(lg); lg.connect(a.frequency); lg.connect(b.frequency);
+        osc.push(lfo);
+      }
+      const fin = t + Math.max(0.08, dur * 0.94);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.32, t + 0.06);
+      g.gain.setValueAtTime(0.28, Math.max(t + 0.07, fin - 0.06));
+      g.gain.linearRampToValueAtTime(0, fin);
+      osc.push(a, b);
+      osc.forEach(o => { o.start(t); o.stop(fin + 0.05); });
+    } else {
+      const a = c.createOscillator(), b = c.createOscillator(), bg = c.createGain();
+      a.type = 'triangle'; b.type = 'sawtooth'; a.frequency.value = f; b.frequency.value = f * 1.003; bg.gain.value = 0.35;
+      a.connect(filtro); b.connect(bg); bg.connect(filtro);
+      filtro.frequency.setValueAtTime(Math.min(8000, f * 12), t);
+      filtro.frequency.exponentialRampToValueAtTime(Math.max(400, f * 2), t + 0.25);
+      const caida = Math.min(1.4, Math.max(0.25, dur * 1.1));
+      const fin = t + Math.max(0.1, dur * 0.97);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.45, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.12, t + Math.min(caida, dur * 0.9));
+      g.gain.setTargetAtTime(0.0001, fin - 0.02, 0.03);
+      osc.push(a, b);
+      osc.forEach(o => { o.start(t); o.stop(fin + 0.2); });
+    }
+    return osc;
+  }
+
+  /**
+   * Toca las notas al tempo indicado y avisa de la que suena.
+   * o: { notas, bpm, num, den, la, timbre, cuentaPrevia, alCuenta(k|null), alActual(n), alFin() }
+   */
+  function sonar(o) {
+    const c = contexto();
+    const secRedonda = 4 * 60 / o.bpm;
+    const notas = o.notas;
+    const t0n = notas.length ? notas[0].t : 0;
+    const salida = c.createGain(); salida.gain.value = 0.8;
+    const comp = c.createDynamicsCompressor(); salida.connect(comp); comp.connect(c.destination);
+    let fin = false, timer = 0, actual = -1, inicio = 0;
+    const fuentes = [];
+    const ini = n => inicio + (n.t - t0n) * secRedonda;
+    function parar(avisar) {
+      if (fin) return;
+      fin = true; clearInterval(timer);
+      const ahora = c.currentTime;
+      salida.gain.cancelScheduledValues(ahora); salida.gain.setValueAtTime(salida.gain.value, ahora); salida.gain.linearRampToValueAtTime(0, ahora + 0.05);
+      setTimeout(() => { fuentes.forEach(x => { try { x.stop(); } catch (e) {} }); try { comp.disconnect(); } catch (e) {} }, 120);
+      if (o.alCuenta) o.alCuenta(null);
+      if (avisar !== false && o.alFin) o.alFin();
+    }
+    return {
+      async empezar() {
+        if (c.state === 'suspended') try { await c.resume(); } catch (e) {}
+        const pulso = 60 / o.bpm * (4 / o.den);
+        const golpes = o.cuentaPrevia ? o.num : 0;
+        const t = c.currentTime + 0.3;
+        for (let i = 0; i < golpes; i++) {
+          clic(t + i * pulso, i === 0);
+          if (o.alCuenta) setTimeout(() => !fin && o.alCuenta(golpes - i), (t + i * pulso - c.currentTime) * 1000);
+        }
+        inicio = t + golpes * pulso;
+        setTimeout(() => !fin && o.alCuenta && o.alCuenta(null), (inicio - c.currentTime) * 1000);
+        notas.forEach(n => { if (n.midi !== null) fuentes.push(...sintetizar(c, salida, frec(n.midi, o.la), ini(n), n.dur * secRedonda, o.timbre)); });
+        const ultima = notas[notas.length - 1];
+        const finT = ini(ultima) + ultima.dur * secRedonda;
+        timer = setInterval(() => {
+          const ahora = c.currentTime;
+          while (actual + 1 < notas.length && ini(notas[actual + 1]) <= ahora) { actual++; if (o.alActual) o.alActual(notas[actual]); }
+          if (ahora > finT + 0.3) parar();
+        }, 25);
+      },
+      parar: () => parar(),
+      cancelar: () => parar(false)
+    };
+  }
+
+  /** Timbre para «¿Cómo suena?» en automático: arco si la parte va grave (violonchelo), púa si no */
+  function timbreAuto(notas) {
+    const m = notas.filter(n => n.midi !== null).map(n => n.midi).sort((a, b) => a - b);
+    return m.length && m[m.length >> 1] < 55 ? 'arco' : 'pua';
+  }
+
+  A.practica = { crear, contexto, clic, sonar, timbreAuto };
 })(window.Compas);

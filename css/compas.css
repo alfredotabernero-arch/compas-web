@@ -19,6 +19,7 @@ main { padding-bottom: 30px; }
 .c-tempo small { display: block; font-size: .7rem; }
 .c-bpm { font-size: 1.6rem; min-width: 52px; text-align: center; cursor: default; }
 .c-tocar { width: 100%; min-height: 54px; font-size: 1.15rem; justify-content: center; }
+.c-oir { width: 100%; margin-top: 10px; justify-content: center; }
 .c-estado { text-align: center; font-size: .85rem; color: var(--tinta-2); margin-top: 6px; min-height: 1.2em; }
 .c-hoja { padding: 10px; }
 .c-marco { max-height: 62vh; overflow: auto; border-radius: 12px; background: #fff; -webkit-overflow-scrolling: touch; }

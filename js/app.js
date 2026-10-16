@@ -6,7 +6,7 @@
   const icono = A.icono;
 
   /* ======================= Ajustes ======================= */
-  const AJ_DEF = { la: 442, tolerancia: 'normal', ignorarOctava: true, retraso: 80, cuentaPrevia: true, metronomo: false, tema: 'auto' };
+  const AJ_DEF = { la: 442, tolerancia: 'normal', ignorarOctava: true, retraso: 80, cuentaPrevia: true, metronomo: false, tema: 'auto', timbre: 'auto' };
   let aj = Object.assign({}, AJ_DEF);
   async function cargarAjustes() { aj = Object.assign({}, AJ_DEF, await DB.kvGet('ajustes', {})); aplicarTema(); }
   async function guardarAjustes() { await DB.kvSet('ajustes', aj); aplicarTema(); }
@@ -203,6 +203,7 @@
       }
 
       const btnTocar = h('button.btn.primario.c-tocar', { onclick: () => (practica ? practica.parar() : tocar()) }, icono('play'), 'Tocar');
+      const btnOir = h('button.btn.c-oir', { onclick: () => (sonando ? sonando.parar() : oir()) }, icono('altavoz'), '¿Cómo suena?');
       const estado = h('div.c-estado');
       main.insertBefore(h('section.tarjeta.c-controles',
         selParte ? u.campo('Parte que tocas', selParte) : null,
@@ -213,7 +214,7 @@
               h('button.btn-icono.redondo', { 'aria-label': 'Más lento', onclick: () => setBpm(bpm - 4) }, icono('menos')), bpmEl,
               h('button.btn-icono.redondo', { 'aria-label': 'Más rápido', onclick: () => setBpm(bpm + 4) }, icono('mas'))), pctEl)),
         h('p.mini.tenue', { style: { margin: '6px 0 10px' } }, 'Toca un compás de la partitura para empezar desde él; con dos toques eliges el tramo.'),
-        btnTocar, estado), hoja);
+        btnTocar, btnOir, estado), hoja);
 
       // ---------- partitura
       const leyenda = h('div.leyenda.c-ley',
@@ -253,10 +254,51 @@
         u.toast('Compases ' + p.desde + '–' + p.hasta, 1400);
       });
 
+      // ---------- «¿Cómo suena?»: el aparato toca el tramo al tempo elegido (sin micrófono)
+      let sonando = null;
+      async function oir() {
+        if (practica) return;
+        guardarTramo();
+        A.partitura.limpiar(notas);
+        notas = A.partitura.notas(osmd, parte, p.desde, p.hasta);
+        if (!notas.some(n => n.midi !== null)) { u.toast('No hay notas en esos compases'); return; }
+        let previa = null;
+        const acabar = () => {
+          sonando = null;
+          A.partitura.limpiar(notas);
+          u.pantallaEncendida(false, 'oir');
+          btnOir.replaceChildren(icono('altavoz'), '¿Cómo suena?'); btnTocar.disabled = false;
+          estado.textContent = '';
+        };
+        sonando = A.practica.sonar({
+          notas, bpm, num: info.num, den: info.den, la: aj.la, cuentaPrevia: aj.cuentaPrevia,
+          timbre: aj.timbre === 'auto' ? A.practica.timbreAuto(notas) : aj.timbre,
+          alCuenta: k => { if (k) { cuenta.textContent = k; cuenta.classList.add('on'); } else cuenta.classList.remove('on'); },
+          alActual: n => {
+            if (previa) A.partitura.pintar(previa, null);
+            if (n.midi === null) { previa = null; return; }
+            previa = n; A.partitura.pintar(n, 'n-actual');
+            const el = A.partitura.elementos(n)[0];
+            if (el) {
+              const r = el.getBoundingClientRect(), mr = marco.getBoundingClientRect();
+              if (r.top < mr.top + 20 || r.bottom > mr.bottom - 20) marco.scrollTo({ top: marco.scrollTop + r.top - mr.top - mr.height / 3, behavior: 'smooth' });
+            }
+          },
+          alFin: acabar
+        });
+        btnOir.replaceChildren(icono('stop'), 'Parar'); btnTocar.disabled = true;
+        estado.textContent = 'Así suenan los compases ' + p.desde + '–' + p.hasta + ' a ' + bpm + '…';
+        u.pantallaEncendida(true, 'oir');
+        const el = notas.find(n => n.midi !== null) && A.partitura.elementos(notas.find(n => n.midi !== null))[0];
+        if (el) el.scrollIntoView({ block: 'center' });
+        await sonando.empezar();
+      }
+
       const clase = e => ({ bien: 'n-bien', tiempo: 'n-tiempo', afin: 'n-tiempo', mal: 'n-mal', falta: 'n-falta' }[e] || null);
       let practica = null;
       const cuenta = h('div.c-cuenta');
       async function tocar() {
+        if (sonando) return;
         guardarTramo();
         A.partitura.limpiar(notas);
         notas = A.partitura.notas(osmd, parte, p.desde, p.hasta);
@@ -334,7 +376,7 @@
         if (q === 'otra' || q === 'fallos' || q === 'subir') { A.partitura.limpiar(notas); marcarTramo(); }
       }
 
-      return () => { if (practica) practica.cancelar(); u.pantallaEncendida(false, 'practica'); cuenta.remove(); };
+      return () => { if (practica) practica.cancelar(); if (sonando) sonando.cancelar(); u.pantallaEncendida(false, 'practica'); u.pantallaEncendida(false, 'oir'); cuenta.remove(); };
     }
   };
 
@@ -361,6 +403,10 @@
           h('p.mini.tenue', { style: { margin: '0 0 8px' } }, 'Mejor con auriculares: si el móvil oye el metrónomo, puede confundirlo con tus notas.'),
           inter('No tener en cuenta la octava', aj.ignorarOctava, async v => { aj.ignorarOctava = v; await guardarAjustes(); }),
           h('p.mini.tenue', { style: { margin: 0 } }, 'Actívalo si tu instrumento suena en otra octava de la que se escribe (laúd, guitarra) o si el micrófono confunde la octava.')),
+        h('section.tarjeta', h('h2', '¿Cómo suena?'),
+          h('div.mini', { style: { fontWeight: 800, margin: '4px 0 6px' } }, 'Sonido'),
+          seg([['auto', 'Automático'], ['pua', 'Púa'], ['arco', 'Arco']], aj.timbre, async v => { aj.timbre = v; await guardarAjustes(); }),
+          h('p.mini.tenue', { style: { margin: '6px 0 0' } }, 'Púa: como una bandurria o un laúd. Arco: sostenido, como un violonchelo. En automático, Compás usa arco si la partitura va grave y púa si no. La velocidad es la de «Negras por minuto».')),
         h('section.tarjeta', h('h2', 'Afinación y micrófono'),
           h('div.fila', h('span.crece', A.pitch.nombreLa() + ' de referencia (Hz)'), laIn),
           h('div.fila', { style: { marginTop: '12px' } }, h('span.crece', 'Retraso del micrófono'), retTxt), ret,
