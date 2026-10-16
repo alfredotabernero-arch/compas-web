@@ -29,6 +29,7 @@
     const raiz = u.$('#app');
     raiz.innerHTML = '';
     document.body.dataset.vista = vista;
+    u.$$('nav.lateral a').forEach(a => a.classList.toggle('activa', a.dataset.id === (vista === 'ajustes' ? 'ajustes' : 'biblioteca')));
     const titulo = h('h1');
     const acciones = h('div.fila', { style: { gap: '2px' } });
     const cab = h('header.cabecera', v.atras ? h('a.btn-icono.atras', { href: v.atras, 'aria-label': 'Atrás' }, icono('atras')) : null, titulo, acciones);
@@ -90,6 +91,17 @@
     });
     inp.click();
   }
+  // Abierto como archivo (Abrir en el PC.bat) el navegador no deja leer los .musicxml: se usa ejemplos.js
+  let ejemplosJs = null;
+  async function leerEjemplo(n) {
+    if (location.protocol !== 'file:') return (await fetch('ejemplos/' + encodeURIComponent(n) + '.musicxml')).text();
+    if (!ejemplosJs) ejemplosJs = new Promise((ok, mal) => {
+      const s = document.createElement('script'); s.src = 'ejemplos/ejemplos.js';
+      s.onload = () => ok(window.COMPAS_EJEMPLOS); s.onerror = () => mal(new Error('No se encuentra ejemplos/ejemplos.js'));
+      document.head.append(s);
+    });
+    return (await ejemplosJs)[n];
+  }
   async function cargarEjemplos() {
     const r = await u.modal('Ejemplos', h('p', { style: { margin: 0 } }, '¿Para qué instrumento? Los de violonchelo van en clave de fa, desde el Do grave, e incluyen estudios de Dotzauer y Lee.'), [
       { texto: 'Cancelar', accion: () => null },
@@ -100,7 +112,7 @@
     const yaHay = new Set((await DB.all('partituras')).map(p => p.archivo));
     for (const n of EJEMPLOS[r]) {
       if (yaHay.has(n)) continue;
-      const xml = await (await fetch('ejemplos/' + encodeURIComponent(n) + '.musicxml')).text();
+      const xml = await leerEjemplo(n);
       const p = await anadir(xml, n + '.musicxml', 'xml');
       p.archivo = n; await DB.put('partituras', p);
     }
@@ -400,9 +412,20 @@
     }
   };
 
+  /* ======================= Menú lateral (solo en pantalla ancha: PC, tablet en horizontal) ======================= */
+  function montarLateral() {
+    const marca = h('a.nav-marca', { href: '#/', 'aria-label': 'Compás' });
+    marca.innerHTML = '<svg viewBox="60 120 392 260" aria-hidden="true"><g stroke="currentColor" stroke-width="10" stroke-linecap="round" opacity=".3"><path d="M70 176h372M70 216h372M70 256h372M70 296h372M70 336h372"/></g><path d="M120 150v206M392 150v206" stroke="currentColor" stroke-width="16" stroke-linecap="round"/><g fill="#0E9384" stroke="#0E9384" stroke-width="14" stroke-linecap="round"><ellipse cx="226" cy="318" rx="40" ry="30" transform="rotate(-22 226 318)"/><path d="M262 306V150M262 150c26 10 50 28 52 66" fill="none"/></g><circle cx="330" cy="320" r="36" fill="#FDBA4D"/><path d="M313 320l12 12 22-25" fill="none" stroke="#0B6E66" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Compás</span>';
+    const enlace = (id, href, ic, nombre) => h('a', { href, 'data-id': id }, icono(ic), h('span', nombre));
+    document.body.appendChild(h('nav.lateral', marca, h('div.dentro',
+      enlace('biblioteca', '#/', 'nota', 'Mis partituras'),
+      enlace('ajustes', '#/ajustes', 'ajustes', 'Ajustes'))));
+  }
+
   /* ======================= Arranque ======================= */
   async function arrancar() {
     cerrarBienvenida();
+    montarLateral();
     await cargarAjustes();
     window.addEventListener('hashchange', pintar);
     await pintar();

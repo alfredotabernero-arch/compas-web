@@ -62,3 +62,45 @@ main { padding-bottom: 30px; }
   .bv-logo .pauta, .bv-logo .barra { stroke-dashoffset: 0 !important; }
   .bv-logo .nota, .bv-logo .visto { transform: none !important; opacity: 1 !important; }
 }
+
+/* ---------- Pantalla ancha (PC, tablet en horizontal): menú lateral y todo el ancho ---------- */
+nav.lateral { display: none; }
+@media (min-width: 1024px) {
+  :root { --lateral: 232px; }
+  body { padding-left: var(--lateral); }
+  #app { max-width: 1240px; }
+  .cabecera { padding: 22px 30px 12px; }
+  .cabecera h1 { font-size: 1.9rem; }
+  main { padding: 4px 30px 30px; }
+
+  nav.lateral {
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 20; width: var(--lateral);
+    display: flex; flex-direction: column; padding: 20px 14px; overflow-y: auto;
+    background: var(--superficie); box-shadow: 1px 0 0 var(--borde);
+  }
+  nav.lateral .nav-marca { display: flex; align-items: center; gap: 10px; padding: 4px 10px 22px; text-decoration: none; color: var(--tinta); font-weight: 900; font-size: 1.35rem; letter-spacing: -.01em; }
+  nav.lateral .nav-marca svg { width: 44px; height: 44px; padding: 6px; border-radius: 14px; background: var(--primario-suave); flex: none; color: var(--tinta); overflow: visible; }
+  nav.lateral .dentro { display: flex; flex-direction: column; gap: 4px; }
+  nav.lateral .dentro a {
+    display: flex; align-items: center; gap: 12px; height: 46px; padding: 0 12px; border-radius: 14px;
+    font-size: .95rem; font-weight: 800; color: var(--tinta-2); text-decoration: none;
+  }
+  nav.lateral .dentro a svg { width: 22px; height: 22px; flex: none; }
+  nav.lateral .dentro a:hover { background: var(--superficie-2); color: var(--tinta); }
+  nav.lateral .dentro a.activa, nav.lateral .dentro a.activa:hover { background: var(--primario-suave); color: var(--primario); }
+
+  /* Mis partituras: en dos columnas (tres si cabe) */
+  .c-lista { grid-template-columns: repeat(2, 1fr); }
+  /* Practicar: los mandos a la izquierda, siempre a la vista, y la partitura a todo lo que queda */
+  body[data-vista="p"] main { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 0 20px; align-items: start; }
+  body[data-vista="p"] .c-controles { grid-column: 1; grid-row: 1; position: sticky; top: 86px; }
+  body[data-vista="p"] .c-hoja { grid-column: 2; grid-row: 1 / span 4; }
+  body[data-vista="p"] main > :not(.c-controles):not(.c-hoja) { grid-column: 1; }
+  body[data-vista="p"] .c-marco { max-height: calc(100vh - 170px); }
+  /* Ajustes: las tarjetas en dos columnas */
+  body[data-vista="ajustes"] main { columns: 2; column-gap: 20px; }
+  body[data-vista="ajustes"] main > * { break-inside: avoid; }
+}
+@media (min-width: 1500px) {
+  .c-lista { grid-template-columns: repeat(3, 1fr); }
+}
