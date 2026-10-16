@@ -19,7 +19,12 @@ main { padding-bottom: 30px; }
 .c-tempo small { display: block; font-size: .7rem; }
 .c-bpm { font-size: 1.6rem; min-width: 52px; text-align: center; cursor: default; }
 .c-tocar { width: 100%; min-height: 54px; font-size: 1.15rem; justify-content: center; }
-.c-oir { width: 100%; margin-top: 10px; justify-content: center; }
+.c-oir-fila { display: flex; gap: 8px 10px; align-items: flex-end; margin-top: 10px; flex-wrap: wrap; }
+.c-inst-lab { flex-direction: row !important; align-items: center; gap: 10px !important; }
+.c-inst-lab > span { flex: none; }
+.c-oir { flex: 1 1 100%; justify-content: center; }
+.c-inst-lab { flex: 1 1 100%; display: flex; flex-direction: column; gap: 2px; }
+.c-inst { width: 100%; min-height: 46px; border-radius: 14px; border: 2px solid var(--borde); background: var(--superficie); padding: 0 10px; font-weight: 700; }
 .c-estado { text-align: center; font-size: .85rem; color: var(--tinta-2); margin-top: 6px; min-height: 1.2em; }
 .c-hoja { padding: 10px; }
 .c-marco { max-height: 62vh; overflow: auto; border-radius: 12px; background: #fff; -webkit-overflow-scrolling: touch; }
@@ -93,7 +98,7 @@ nav.lateral { display: none; }
   /* Mis partituras: en dos columnas (tres si cabe) */
   .c-lista { grid-template-columns: repeat(2, 1fr); }
   /* Practicar: los mandos a la izquierda, siempre a la vista, y la partitura a todo lo que queda */
-  body[data-vista="p"] main { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 0 20px; align-items: start; }
+  body[data-vista="p"] main { display: grid; grid-template-columns: 370px minmax(0, 1fr); gap: 0 20px; align-items: start; }
   body[data-vista="p"] .c-controles { grid-column: 1; grid-row: 1; position: sticky; top: 86px; }
   body[data-vista="p"] .c-hoja { grid-column: 2; grid-row: 1 / span 4; }
   body[data-vista="p"] main > :not(.c-controles):not(.c-hoja) { grid-column: 1; }

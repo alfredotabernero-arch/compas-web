@@ -6,7 +6,7 @@
   const icono = A.icono;
 
   /* ======================= Ajustes ======================= */
-  const AJ_DEF = { la: 442, tolerancia: 'normal', ignorarOctava: true, retraso: 80, cuentaPrevia: true, metronomo: false, tema: 'auto', timbre: 'auto' };
+  const AJ_DEF = { la: 442, tolerancia: 'normal', ignorarOctava: true, retraso: 80, cuentaPrevia: true, metronomo: false, tema: 'auto', instrumento: 'auto' };
   let aj = Object.assign({}, AJ_DEF);
   async function cargarAjustes() { aj = Object.assign({}, AJ_DEF, await DB.kvGet('ajustes', {})); aplicarTema(); }
   async function guardarAjustes() { await DB.kvSet('ajustes', aj); aplicarTema(); }
@@ -204,6 +204,13 @@
 
       const btnTocar = h('button.btn.primario.c-tocar', { onclick: () => (practica ? practica.parar() : tocar()) }, icono('play'), 'Tocar');
       const btnOir = h('button.btn.c-oir', { onclick: () => (sonando ? sonando.parar() : oir()) }, icono('altavoz'), '¿Cómo suena?');
+      // instrumento de «¿Cómo suena?»: se elige aquí mismo (y queda igual para las demás partituras)
+      const instAuto = () => A.practica.INSTRUMENTOS[A.practica.instrumentoAuto(parte.nombre, A.partitura.notas(osmd, parte, info.primerCompas, info.compases))].nombre.replace(/ \(.*\)$/, '');
+      const selInst = h('select.c-inst', { 'aria-label': 'Instrumento' },
+        h('option', { value: 'auto' }, 'Automático (' + instAuto() + ')'),
+        Object.entries(A.practica.INSTRUMENTOS).map(([k, v]) => h('option', { value: k }, v.nombre)));
+      selInst.value = aj.instrumento in A.practica.INSTRUMENTOS ? aj.instrumento : 'auto';
+      selInst.addEventListener('change', async () => { aj.instrumento = selInst.value; await guardarAjustes(); if (aj.instrumento !== 'auto') A.practica.banco(A.practica.INSTRUMENTOS[aj.instrumento].archivo).catch(() => {}); });
       const estado = h('div.c-estado');
       main.insertBefore(h('section.tarjeta.c-controles',
         selParte ? u.campo('Parte que tocas', selParte) : null,
@@ -214,7 +221,7 @@
               h('button.btn-icono.redondo', { 'aria-label': 'Más lento', onclick: () => setBpm(bpm - 4) }, icono('menos')), bpmEl,
               h('button.btn-icono.redondo', { 'aria-label': 'Más rápido', onclick: () => setBpm(bpm + 4) }, icono('mas'))), pctEl)),
         h('p.mini.tenue', { style: { margin: '6px 0 10px' } }, 'Toca un compás de la partitura para empezar desde él; con dos toques eliges el tramo.'),
-        btnTocar, btnOir, estado), hoja);
+        btnTocar, h('div.c-oir-fila', btnOir, h('label.c-inst-lab', h('span.mini.tenue', 'Suena como'), selInst)), estado), hoja);
 
       // ---------- partitura
       const leyenda = h('div.leyenda.c-ley',
@@ -267,12 +274,12 @@
           sonando = null;
           A.partitura.limpiar(notas);
           u.pantallaEncendida(false, 'oir');
-          btnOir.replaceChildren(icono('altavoz'), '¿Cómo suena?'); btnTocar.disabled = false;
+          btnOir.replaceChildren(icono('altavoz'), '¿Cómo suena?'); btnTocar.disabled = false; selInst.disabled = false;
           estado.textContent = '';
         };
         sonando = A.practica.sonar({
           notas, bpm, num: info.num, den: info.den, la: aj.la, cuentaPrevia: aj.cuentaPrevia,
-          timbre: aj.timbre === 'auto' ? A.practica.timbreAuto(notas) : aj.timbre,
+          instrumento: aj.instrumento in A.practica.INSTRUMENTOS ? aj.instrumento : A.practica.instrumentoAuto(parte.nombre, notas),
           alCuenta: k => { if (k) { cuenta.textContent = k; cuenta.classList.add('on'); } else cuenta.classList.remove('on'); },
           alActual: n => {
             if (previa) A.partitura.pintar(previa, null);
@@ -286,7 +293,7 @@
           },
           alFin: acabar
         });
-        btnOir.replaceChildren(icono('stop'), 'Parar'); btnTocar.disabled = true;
+        btnOir.replaceChildren(icono('stop'), 'Parar'); btnTocar.disabled = true; selInst.disabled = true;
         estado.textContent = 'Así suenan los compases ' + p.desde + '–' + p.hasta + ' a ' + bpm + '…';
         u.pantallaEncendida(true, 'oir');
         const el = notas.find(n => n.midi !== null) && A.partitura.elementos(notas.find(n => n.midi !== null))[0];
@@ -404,9 +411,13 @@
           inter('No tener en cuenta la octava', aj.ignorarOctava, async v => { aj.ignorarOctava = v; await guardarAjustes(); }),
           h('p.mini.tenue', { style: { margin: 0 } }, 'Actívalo si tu instrumento suena en otra octava de la que se escribe (laúd, guitarra) o si el micrófono confunde la octava.')),
         h('section.tarjeta', h('h2', '¿Cómo suena?'),
-          h('div.mini', { style: { fontWeight: 800, margin: '4px 0 6px' } }, 'Sonido'),
-          seg([['auto', 'Automático'], ['pua', 'Púa'], ['arco', 'Arco']], aj.timbre, async v => { aj.timbre = v; await guardarAjustes(); }),
-          h('p.mini.tenue', { style: { margin: '6px 0 0' } }, 'Púa: como una bandurria o un laúd. Arco: sostenido, como un violonchelo. En automático, Compás usa arco si la partitura va grave y púa si no. La velocidad es la de «Negras por minuto».')),
+          u.campo('Instrumento', (() => {
+            const sel = h('select', h('option', { value: 'auto' }, 'Automático'), Object.entries(A.practica.INSTRUMENTOS).map(([k, v]) => h('option', { value: k }, v.nombre)));
+            sel.value = aj.instrumento in A.practica.INSTRUMENTOS ? aj.instrumento : 'auto';
+            sel.addEventListener('change', async () => { aj.instrumento = sel.value; await guardarAjustes(); });
+            return sel;
+          })()),
+          h('p.mini.tenue', { style: { margin: '6px 0 0' } }, 'Con qué instrumento toca Compás la partitura al pulsar «¿Cómo suena?». En automático lo elige por el nombre de la parte (violonchelo, flauta…) o, si no lo dice, por lo grave que vaya. La guitarra y el laúd suenan una octava por debajo de lo escrito, como de verdad. También se puede cambiar junto al botón. La velocidad es la de «Negras por minuto».')),
         h('section.tarjeta', h('h2', 'Afinación y micrófono'),
           h('div.fila', h('span.crece', A.pitch.nombreLa() + ' de referencia (Hz)'), laIn),
           h('div.fila', { style: { marginTop: '12px' } }, h('span.crece', 'Retraso del micrófono'), retTxt), ret,
@@ -417,7 +428,7 @@
         h('section.tarjeta', h('h2', 'Acerca de Compás'),
           h('p', { style: { marginTop: 0 } }, 'Compás escucha cómo tocas una partitura en MusicXML y te dice, nota a nota, qué ha salido bien. Funciona sin conexión: el sonido no sale de tu aparato.'),
           h('p.mini.tenue', 'Versión ' + A.VERSION + ' (piloto) · Creado por ', h('b', 'Alfredo Tabernero Martínez')),
-          h('p.mini.tenue', { style: { margin: 0 } }, 'Partituras dibujadas con OpenSheetMusicDisplay (licencia BSD).')),
+          h('p.mini.tenue', { style: { margin: 0 } }, 'Partituras dibujadas con OpenSheetMusicDisplay (licencia BSD). Sonidos de los instrumentos: banco FluidR3_GM de Frank Wen (licencia MIT).')),
         h('section.tarjeta', h('h2', 'Datos'),
           h('button.btn.peligro', { onclick: async () => {
             if (!(await u.confirmar('¿Borrar todas las partituras y prácticas de este aparato?', 'Borrar todo', 'peligro'))) return;

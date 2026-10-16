@@ -223,16 +223,99 @@
     return osc;
   }
 
+  /* ---------- Instrumentos con sonido grabado (banco FluidR3_GM, licencia MIT; ver sonidos/) ---------- */
+  // archivo: muestras en sonidos/<archivo>.js · sost: sonido sostenido (arco, viento) · oct: suena una octava por debajo de lo escrito
+  const INSTRUMENTOS = {
+    bandurria: { nombre: 'Bandurria', archivo: 'pua', tremolo: true },
+    laud: { nombre: 'Laúd', archivo: 'pua', oct: -12, tremolo: true },
+    guitarra: { nombre: 'Guitarra española', archivo: 'guitarra', oct: -12 },
+    violin: { nombre: 'Violín', archivo: 'violin', sost: true },
+    viola: { nombre: 'Viola', archivo: 'viola', sost: true },
+    violonchelo: { nombre: 'Violonchelo', archivo: 'violonchelo', sost: true },
+    flauta: { nombre: 'Flauta', archivo: 'flauta', sost: true },
+    clarinete: { nombre: 'Clarinete', archivo: 'clarinete', sost: true },
+    piano: { nombre: 'Piano', archivo: 'piano' }
+  };
+  const bancos = {};
+  function cargarScript(src) {
+    return new Promise((ok, mal) => {
+      const s = document.createElement('script'); s.src = src;
+      s.onload = ok; s.onerror = () => mal(new Error('No se encuentra ' + src));
+      document.head.append(s);
+    });
+  }
+  /** Las muestras de un instrumento, decodificadas: { midi: AudioBuffer } */
+  function banco(archivo) {
+    if (bancos[archivo]) return bancos[archivo];
+    bancos[archivo] = (async () => {
+      const todos = window.COMPAS_SONIDOS || {};
+      if (!todos[archivo]) await cargarScript('sonidos/' + archivo + '.js');
+      const datos = window.COMPAS_SONIDOS[archivo];
+      const c = contexto(), out = {};
+      await Promise.all(Object.entries(datos).map(async ([m, b64]) => {
+        const bin = atob(b64), buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        out[m] = await c.decodeAudioData(buf.buffer);
+      }));
+      return out;
+    })();
+    bancos[archivo].catch(() => { delete bancos[archivo]; });
+    return bancos[archivo];
+  }
+
+  /** Una nota con la muestra más cercana, afinada con la velocidad de reproducción */
+  function muestra(c, salida, b, midi, t, dur, inst, la) {
+    const claves = Object.keys(b).map(Number);
+    const k = claves.reduce((a, x) => Math.abs(x - midi) < Math.abs(a - midi) ? x : a, claves[0]);
+    const afin = 12 * Math.log2(la / 440);
+    const fuentes = [];
+    const golpe = (t0, d, vol, ultimo) => {
+      const src = c.createBufferSource(), g = c.createGain();
+      src.buffer = b[k];
+      src.playbackRate.value = Math.pow(2, (midi - k + afin) / 12);
+      if (inst.sost && d > 2.4) { src.loop = true; src.loopStart = 1.0; src.loopEnd = 2.4; }
+      src.connect(g); g.connect(salida);
+      g.gain.setValueAtTime(vol, t0);
+      const fin = t0 + d;
+      if (inst.sost) { g.gain.setTargetAtTime(0, Math.max(t0 + 0.02, fin - 0.04), 0.035); src.start(t0); src.stop(fin + 0.3); }
+      else { g.gain.setTargetAtTime(0, fin, ultimo ? 0.09 : 0.02); src.start(t0); src.stop(fin + (ultimo ? 0.6 : 0.1)); }
+      fuentes.push(src);
+    };
+    if (inst.tremolo && dur >= 0.45) {
+      // trémolo de púa, como se tocan en la bandurria y el laúd las notas largas
+      const paso = 0.085, n = Math.max(2, Math.round(dur / paso));
+      for (let i = 0; i < n; i++) golpe(t + i * (dur / n), dur / n + 0.03, i % 2 ? 0.75 : 1, i === n - 1);
+    } else golpe(t, dur, 1, true);
+    return fuentes;
+  }
+
+  /** Instrumento en «Automático»: por el nombre de la parte y, si no lo dice, por lo grave que vaya */
+  function instrumentoAuto(nombreParte, notas) {
+    const n = (nombreParte || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (/violonch|cello/.test(n)) return 'violonchelo';
+    if (/viola\b|viola /.test(n + ' ') && !/violin/.test(n)) return 'viola';
+    if (/violin/.test(n)) return 'violin';
+    if (/flaut|flute/.test(n)) return 'flauta';
+    if (/clarin/.test(n)) return 'clarinete';
+    if (/piano/.test(n)) return 'piano';
+    if (/guitar/.test(n)) return 'guitarra';
+    if (/laud|lute/.test(n)) return 'laud';
+    if (/bandurr|mandol/.test(n)) return 'bandurria';
+    const m = notas.filter(x => x.midi !== null).map(x => x.midi).sort((a, b) => a - b);
+    return m.length && m[m.length >> 1] < 55 ? 'violonchelo' : 'bandurria';
+  }
+
   /**
    * Toca las notas al tempo indicado y avisa de la que suena.
-   * o: { notas, bpm, num, den, la, timbre, cuentaPrevia, alCuenta(k|null), alActual(n), alFin() }
+   * o: { notas, bpm, num, den, la, instrumento, cuentaPrevia, alCuenta(k|null), alActual(n), alFin() }
    */
   function sonar(o) {
     const c = contexto();
     const secRedonda = 4 * 60 / o.bpm;
     const notas = o.notas;
     const t0n = notas.length ? notas[0].t : 0;
-    const salida = c.createGain(); salida.gain.value = 0.8;
+    const inst = INSTRUMENTOS[o.instrumento] || INSTRUMENTOS.bandurria;
+    const salida = c.createGain(); salida.gain.value = 2.2;
     const comp = c.createDynamicsCompressor(); salida.connect(comp); comp.connect(c.destination);
     let fin = false, timer = 0, actual = -1, inicio = 0;
     const fuentes = [];
@@ -249,6 +332,9 @@
     return {
       async empezar() {
         if (c.state === 'suspended') try { await c.resume(); } catch (e) {}
+        let b = null;
+        try { b = await banco(inst.archivo); } catch (e) { console.error(e); }
+        if (fin) return;
         const pulso = 60 / o.bpm * (4 / o.den);
         const golpes = o.cuentaPrevia ? o.num : 0;
         const t = c.currentTime + 0.3;
@@ -258,7 +344,12 @@
         }
         inicio = t + golpes * pulso;
         setTimeout(() => !fin && o.alCuenta && o.alCuenta(null), (inicio - c.currentTime) * 1000);
-        notas.forEach(n => { if (n.midi !== null) fuentes.push(...sintetizar(c, salida, frec(n.midi, o.la), ini(n), n.dur * secRedonda, o.timbre)); });
+        notas.forEach(n => {
+          if (n.midi === null) return;
+          const midi = n.midi + (inst.oct || 0), d = n.dur * secRedonda;
+          if (b) fuentes.push(...muestra(c, salida, b, midi, ini(n), d, inst, o.la));
+          else fuentes.push(...sintetizar(c, salida, frec(midi, o.la) , ini(n), d, inst.sost ? 'arco' : 'pua'));   // sin muestras: el sonido sencillo
+        });
         const ultima = notas[notas.length - 1];
         const finT = ini(ultima) + ultima.dur * secRedonda;
         timer = setInterval(() => {
@@ -272,11 +363,5 @@
     };
   }
 
-  /** Timbre para «¿Cómo suena?» en automático: arco si la parte va grave (violonchelo), púa si no */
-  function timbreAuto(notas) {
-    const m = notas.filter(n => n.midi !== null).map(n => n.midi).sort((a, b) => a - b);
-    return m.length && m[m.length >> 1] < 55 ? 'arco' : 'pua';
-  }
-
-  A.practica = { crear, contexto, clic, sonar, timbreAuto };
+  A.practica = { crear, contexto, clic, sonar, instrumentoAuto, INSTRUMENTOS, banco };
 })(window.Compas);
