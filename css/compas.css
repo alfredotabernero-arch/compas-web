@@ -110,3 +110,21 @@ nav.lateral { display: none; }
 @media (min-width: 1500px) {
   .c-lista { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ======================= 0.1.8: exigencia, tamaño y pasar la página ======================= */
+.c-exig { margin: 4px 0 12px; border: 1px solid var(--borde, #E3DFF0); border-radius: 12px; padding: 0 12px; }
+.c-exig > summary { list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: center; padding: 10px 0; }
+.c-exig > summary::-webkit-details-marker { display: none; }
+.c-exig > summary::after { content: '›'; margin-left: auto; font-size: 1.2rem; transition: transform .2s; }
+.c-exig[open] > summary::after { transform: rotate(90deg); }
+.c-exig-res { font-weight: 700; font-size: .86rem; }
+.c-exig[open] { padding-bottom: 10px; }
+.c-exig-item { margin: 4px 0 12px; }
+.c-exig-item input[type=range] { width: 100%; margin: 6px 0 0; }
+.c-exig-item b { font-size: .86rem; white-space: nowrap; }
+.c-exig-ext { display: flex; justify-content: space-between; font-size: .7rem; opacity: .6; }
+.c-hoja-cab { margin-bottom: 6px; flex-wrap: wrap; row-gap: 6px; }
+.c-zoom { display: flex; align-items: center; gap: 4px; border: 1px solid var(--borde, #E3DFF0); border-radius: 999px; padding: 2px 4px 2px 10px; }
+.c-zoom > svg { width: 18px; height: 18px; opacity: .7; }
+.c-zoom .btn-icono { font-size: 1.25rem; font-weight: 800; width: 38px; height: 38px; }
+.c-zoom-txt { min-width: 48px; text-align: center; font-size: .86rem; font-variant-numeric: tabular-nums; }

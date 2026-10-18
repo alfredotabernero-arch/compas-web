@@ -6,9 +6,15 @@
   const icono = A.icono;
 
   /* ======================= Ajustes ======================= */
-  const AJ_DEF = { la: 442, tolerancia: 'normal', ignorarOctava: true, retraso: 80, cuentaPrevia: true, metronomo: false, tema: 'auto', instrumento: 'auto' };
+  const AJ_DEF = { la: 442, tolTiempo: 200, tolAfin: 40, ignorarOctava: true, retraso: 80, cuentaPrevia: true, metronomo: false, tema: 'auto', instrumento: 'auto', pasarPagina: true };
   let aj = Object.assign({}, AJ_DEF);
-  async function cargarAjustes() { aj = Object.assign({}, AJ_DEF, await DB.kvGet('ajustes', {})); aplicarTema(); }
+  async function cargarAjustes() {
+    const g = await DB.kvGet('ajustes', {});
+    // 0.1.8: la exigencia pasa de tres botones a deslizadores (solo se respeta la «estricta»; las otras eran demasiado exigentes)
+    if (g.tolTiempo == null && g.tolerancia === 'estricta') g.tolTiempo = 70;
+    delete g.tolerancia;
+    aj = Object.assign({}, AJ_DEF, g); aplicarTema();
+  }
   async function guardarAjustes() { await DB.kvSet('ajustes', aj); aplicarTema(); }
   function aplicarTema() {
     if (aj.tema === 'auto') document.documentElement.removeAttribute('data-theme');
@@ -151,6 +157,28 @@
     }
   };
 
+  /* ---------- exigencia (0.1.8): dos deslizadores, para el tiempo y para la afinación ---------- */
+  const nivelT = v => v <= 80 ? 'Estricta' : v <= 140 ? 'Normal' : v <= 240 ? 'Flexible' : 'Muy flexible';
+  const nivelA = v => v <= 15 ? 'Estricta' : v <= 25 ? 'Normal' : v <= 40 ? 'Flexible' : 'Muy flexible';
+  const resumenExig = () => 'Tiempo: ' + nivelT(aj.tolTiempo).toLowerCase() + ' · Afinación: ' + nivelA(aj.tolAfin).toLowerCase();
+  function deslizador(txt, clave, min, max, paso, uds, nivel, ayuda, alCambiar) {
+    const r = h('input', { type: 'range', min, max, step: paso, value: aj[clave], 'aria-label': txt });
+    const val = h('b');
+    const pintar = () => { val.textContent = nivel(Number(r.value)) + ' · ±' + r.value + ' ' + uds; };
+    pintar();
+    r.addEventListener('input', pintar);
+    r.addEventListener('change', async () => { aj[clave] = Number(r.value); await guardarAjustes(); alCambiar && alCambiar(); });
+    return h('div.c-exig-item',
+      h('div.fila', h('span.crece', { style: { fontWeight: 800 } }, txt), val), r,
+      h('div.c-exig-ext', h('span', 'Más exigente'), h('span', 'Más flexible')),
+      ayuda ? h('p.mini.tenue', { style: { margin: '2px 0 0' } }, ayuda) : null);
+  }
+  const exigencia = (alCambiar, conAyuda) => [
+    deslizador('Exigencia con el tiempo', 'tolTiempo', 50, 400, 10, 'ms', nivelT,
+      conAyuda ? 'Cuánto te puedes adelantar o atrasar en cada nota, en milésimas de segundo. Para empezar un pasaje, flexible; cuando ya sale, apriétalo.' : null, alCambiar),
+    deslizador('Exigencia con la afinación', 'tolAfin', 10, 50, 5, 'cents', nivelA,
+      conAyuda ? 'Cuánto puede desviarse cada nota de la afinación justa (100 cents son un semitono; con 50 solo cuenta que sea la nota correcta).' : null, alCambiar)];
+
   const color = v => v == null ? 'var(--tinta-3)' : v < 50 ? '#FF5A5F' : v < 75 ? '#F5B400' : '#22C27A';
 
   /* ======================= Partitura y práctica ======================= */
@@ -212,6 +240,9 @@
       selInst.value = aj.instrumento in A.practica.INSTRUMENTOS ? aj.instrumento : 'auto';
       selInst.addEventListener('change', async () => { aj.instrumento = selInst.value; await guardarAjustes(); if (aj.instrumento !== 'auto') A.practica.banco(A.practica.INSTRUMENTOS[aj.instrumento].archivo).catch(() => {}); });
       const estado = h('div.c-estado');
+      const exigRes = h('span.c-exig-res', resumenExig());
+      const exigDet = h('details.c-exig', h('summary', h('span.mini.tenue', 'Exigencia'), exigRes),
+        exigencia(() => { exigRes.textContent = resumenExig(); }, false));
       main.insertBefore(h('section.tarjeta.c-controles',
         selParte ? u.campo('Parte que tocas', selParte) : null,
         h('div.c-fila',
@@ -221,14 +252,17 @@
               h('button.btn-icono.redondo', { 'aria-label': 'Más lento', onclick: () => setBpm(bpm - 4) }, icono('menos')), bpmEl,
               h('button.btn-icono.redondo', { 'aria-label': 'Más rápido', onclick: () => setBpm(bpm + 4) }, icono('mas'))), pctEl)),
         h('p.mini.tenue', { style: { margin: '6px 0 10px' } }, 'Toca un compás de la partitura para empezar desde él; con dos toques eliges el tramo.'),
-        btnTocar, h('div.c-oir-fila', btnOir, h('label.c-inst-lab', h('span.mini.tenue', 'Suena como'), selInst)), estado), hoja);
+        exigDet, btnTocar, h('div.c-oir-fila', btnOir, h('label.c-inst-lab', h('span.mini.tenue', 'Suena como'), selInst)), estado), hoja);
 
       // ---------- partitura
       const leyenda = h('div.leyenda.c-ley',
         h('span', h('i', { style: { background: '#22C27A' } }), 'Bien'), h('span', h('i', { style: { background: '#F5B400' } }), 'A destiempo o desafinada'),
         h('span', h('i', { style: { background: '#FF5A5F' } }), 'Equivocada'), h('span', h('i', { style: { background: '#B4AFCB' } }), 'No sonó'));
-      hoja.insertBefore(h('div.fila', { style: { marginBottom: '6px' } }, leyenda, h('span.crece'),
-        h('button.btn-icono', { 'aria-label': 'Reducir', onclick: () => zoom(-0.1) }, '−'), h('button.btn-icono', { 'aria-label': 'Ampliar', onclick: () => zoom(0.1) }, '+')), marco);
+      const zoomTxt = h('b.c-zoom-txt', Math.round(osmd.Zoom * 100) + ' %');
+      hoja.insertBefore(h('div.fila.c-hoja-cab', leyenda, h('span.crece'),
+        h('div.c-zoom', { title: 'Tamaño de la partitura' }, icono('lupa'),
+          h('button.btn-icono', { 'aria-label': 'Reducir', onclick: () => zoom(-0.1) }, '−'), zoomTxt,
+          h('button.btn-icono', { 'aria-label': 'Ampliar', onclick: () => zoom(0.1) }, '+'))), marco);
 
       let notas = [];
       function marcarTramo() {
@@ -238,12 +272,37 @@
         todas.forEach(n => { if (n.compas < p.desde || n.compas > p.hasta) A.partitura.elementos(n).forEach(el => el.classList.add('c-fuera')); });
       }
       function zoom(d) {
-        osmd.Zoom = u.clamp(Math.round((osmd.Zoom + d) * 10) / 10, 0.4, 2);
+        osmd.Zoom = u.clamp(Math.round((osmd.Zoom + d) * 10) / 10, 0.4, 3);
         DB.kvSet('zoom', osmd.Zoom);
+        zoomTxt.textContent = Math.round(osmd.Zoom * 100) + ' %';
+        const rel = marco.scrollHeight ? marco.scrollTop / marco.scrollHeight : 0;
         osmd.render(); marcarTramo();
+        marco.scrollTop = rel * marco.scrollHeight;
         notas.forEach(n => n.estado && A.partitura.pintar(n, clase(n.estado)));
       }
       marcarTramo();
+
+      /**
+       * Que la nota que suena se vea. Con «Pasar la página», por renglones: cuando llegas al último renglón
+       * que se ve entero, ese renglón sube arriba del todo y aparecen los siguientes (como pasar la hoja).
+       */
+      function seguir(n, alEmpezar) {
+        const svg = contPart.querySelector('svg');
+        const rg = svg && A.partitura.renglon(osmd, n);
+        if (!rg || (!aj.pasarPagina && !alEmpezar)) {
+          const el = A.partitura.elementos(n)[0];
+          if (!el) return;
+          const r = el.getBoundingClientRect(), mr = marco.getBoundingClientRect();
+          if (alEmpezar || r.top < mr.top + 20 || r.bottom > mr.bottom - 20) marco.scrollTo({ top: marco.scrollTop + r.top - mr.top - mr.height / 3, behavior: 'smooth' });
+          return;
+        }
+        const base = svg.getBoundingClientRect().top - marco.getBoundingClientRect().top + marco.scrollTop;
+        const arriba = base + rg.arriba - 4, abajo = base + rg.abajo, vista = marco.clientHeight, ini = marco.scrollTop;
+        const sig = rg.siguiente ? base + rg.siguiente.abajo : null;
+        const tapado = arriba < ini - 1 || abajo > ini + vista + 1;           // el renglón que suena no se ve entero
+        const ultimo = sig !== null && sig > ini + vista + 1 && arriba > ini + 6;  // es el último que se ve y quedan más
+        if (alEmpezar || tapado || ultimo) marco.scrollTo({ top: Math.max(0, arriba), behavior: 'auto' });
+      }
 
       // tocar un compás de la partitura: empezar desde él (dos toques seguidos: tramo)
       let ultimoToque = null;
@@ -285,20 +344,23 @@
             if (previa) A.partitura.pintar(previa, null);
             if (n.midi === null) { previa = null; return; }
             previa = n; A.partitura.pintar(n, 'n-actual');
-            const el = A.partitura.elementos(n)[0];
-            if (el) {
-              const r = el.getBoundingClientRect(), mr = marco.getBoundingClientRect();
-              if (r.top < mr.top + 20 || r.bottom > mr.bottom - 20) marco.scrollTo({ top: marco.scrollTop + r.top - mr.top - mr.height / 3, behavior: 'smooth' });
-            }
+            seguir(n);
           },
           alFin: acabar
         });
         btnOir.replaceChildren(icono('stop'), 'Parar'); btnTocar.disabled = true; selInst.disabled = true;
         estado.textContent = 'Así suenan los compases ' + p.desde + '–' + p.hasta + ' a ' + bpm + '…';
         u.pantallaEncendida(true, 'oir');
-        const el = notas.find(n => n.midi !== null) && A.partitura.elementos(notas.find(n => n.midi !== null))[0];
-        if (el) el.scrollIntoView({ block: 'center' });
+        empezarVista();
         await sonando.empezar();
+      }
+
+      // al empezar: la partitura a la vista y el primer renglón del tramo arriba
+      function empezarVista() {
+        const r = marco.getBoundingClientRect();
+        if (r.top < 0 || r.top > window.innerHeight * 0.6) marco.scrollIntoView({ block: 'nearest' });
+        const prim = notas.find(n => n.midi !== null);
+        if (prim) seguir(prim, true);
       }
 
       const clase = e => ({ bien: 'n-bien', tiempo: 'n-tiempo', afin: 'n-tiempo', mal: 'n-mal', falta: 'n-falta' }[e] || null);
@@ -311,17 +373,13 @@
         notas = A.partitura.notas(osmd, parte, p.desde, p.hasta);
         if (!notas.some(n => n.midi !== null)) { u.toast('No hay notas en esos compases'); return; }
         practica = A.practica.crear({
-          notas, bpm, num: info.num, den: info.den, la: aj.la, tolerancia: aj.tolerancia, ignorarOctava: aj.ignorarOctava,
+          notas, bpm, num: info.num, den: info.den, la: aj.la, tolTiempo: aj.tolTiempo / 1000, tolAfin: aj.tolAfin, ignorarOctava: aj.ignorarOctava,
           retraso: aj.retraso / 1000, cuentaPrevia: aj.cuentaPrevia, metronomo: aj.metronomo,
           alCuenta: k => { if (k) { cuenta.textContent = k; cuenta.classList.add('on'); } else cuenta.classList.remove('on'); },
           alActual: n => {
             if (n.midi === null) return;
             A.partitura.pintar(n, 'n-actual');
-            const el = A.partitura.elementos(n)[0];
-            if (el) {
-              const r = el.getBoundingClientRect(), mr = marco.getBoundingClientRect();
-              if (r.top < mr.top + 20 || r.bottom > mr.bottom - 20) marco.scrollTo({ top: marco.scrollTop + r.top - mr.top - mr.height / 3, behavior: 'smooth' });
-            }
+            seguir(n);
           },
           alNota: n => A.partitura.pintar(n, clase(n.estado)),
           alFin: async r => {
@@ -342,9 +400,7 @@
         u.pantallaEncendida(true, 'practica');
         btnTocar.replaceChildren(icono('stop'), 'Parar');
         estado.textContent = 'Escuchando los compases ' + p.desde + '–' + p.hasta + ' a ' + bpm + '…';
-        marco.scrollTo({ top: 0 });
-        const el = notas.find(n => n.midi !== null) && A.partitura.elementos(notas.find(n => n.midi !== null))[0];
-        if (el) el.scrollIntoView({ block: 'center' });
+        empezarVista();
       }
       document.body.appendChild(cuenta);
 
@@ -402,9 +458,9 @@
       ret.addEventListener('change', async () => { aj.retraso = Number(ret.value); await guardarAjustes(); });
       main.append(
         h('section.tarjeta', h('h2', 'Al tocar'),
-          h('div.mini', { style: { fontWeight: 800, margin: '4px 0 6px' } }, 'Exigencia con el tiempo'),
-          seg([['flexible', 'Flexible'], ['normal', 'Normal'], ['estricta', 'Estricta']], aj.tolerancia, async v => { aj.tolerancia = v; await guardarAjustes(); }),
-          h('p.mini.tenue', 'Cuánto te puedes adelantar o atrasar en cada nota: 160, 110 o 70 milésimas.'),
+          exigencia(null, true),
+          inter('Pasar la página sola mientras tocas', aj.pasarPagina, async v => { aj.pasarPagina = v; await guardarAjustes(); }),
+          h('p.mini.tenue', { style: { margin: '0 0 8px' } }, 'Si el tramo no cabe en la pantalla, cuando llegas al último renglón que se ve, ese renglón sube arriba del todo y aparecen los siguientes.'),
           inter('Cuenta previa de un compás', aj.cuentaPrevia, async v => { aj.cuentaPrevia = v; await guardarAjustes(); }),
           inter('Metrónomo mientras tocas', aj.metronomo, async v => { aj.metronomo = v; await guardarAjustes(); }),
           h('p.mini.tenue', { style: { margin: '0 0 8px' } }, 'Mejor con auriculares: si el móvil oye el metrónomo, puede confundirlo con tus notas.'),

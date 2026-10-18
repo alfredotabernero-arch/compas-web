@@ -18,18 +18,17 @@
     o.start(t); o.stop(t + 0.06);
   }
 
-  const TOL = { flexible: 0.16, normal: 0.11, estricta: 0.07 };
 
   /**
    * Crea una práctica.
-   * o: { notas, bpm (negras por minuto), num, den, cuentaPrevia, metronomo, tolerancia, ignorarOctava, retraso (s), la,
+   * o: { notas, bpm (negras por minuto), num, den, cuentaPrevia, metronomo, tolTiempo (s), tolAfin (cents), ignorarOctava, retraso (s), la,
    *      alActual(n), alNota(n), alFin(resultado), alCuenta(numero|null) }
    */
   function crear(o) {
     const c = contexto();
     const secRedonda = 4 * 60 / o.bpm;
     const t0n = o.notas.length ? o.notas[0].t : 0;
-    const tolT = TOL[o.tolerancia] || TOL.normal;
+    const tolT = o.tolTiempo || 0.2, tolA = o.tolAfin || 40;
     let stream = null, fuente = null, an = null, buf = null, timer = 0, inicio = 0, fin = false;
     const marcos = [];        // { t, rms, midi|null }
     const ataques = [];
@@ -80,7 +79,7 @@
       while (siguiente < notas.length) {
         const n = notas[siguiente];
         const margen = Math.min(0.25, n.dur * secRedonda * 0.5);
-        if (ahora - o.retraso < finNota(n) + offset + Math.max(0.12, margen)) break;
+        if (ahora - o.retraso < finNota(n) + offset + Math.max(0.12, margen, Math.min(0.45, tolT + 0.05))) break;
         evaluar(n);
         siguiente++;
       }
@@ -101,13 +100,13 @@
       n.tocada = Math.round(med);
       const alturaBien = Math.abs(dif) < 0.5;
       // tiempo: el ataque más cercano al inicio previsto
-      const vent = Math.max(0.2, Math.min(0.4, durS * 0.6));
+      const vent = Math.max(0.2, Math.min(0.4, durS * 0.6), tolT + 0.08);
       let mejor = null;
       ataques.forEach(a => { if (Math.abs(a - ini) <= vent && (mejor === null || Math.abs(a - ini) < Math.abs(mejor - ini))) mejor = a; });
       n.delta = mejor === null ? null : mejor - ini;
       if (!alturaBien) n.estado = 'mal';
       else if (n.delta !== null && Math.abs(n.delta) > tolT) n.estado = 'tiempo';
-      else if (Math.abs(n.cents) > 30) n.estado = 'afin';
+      else if (Math.abs(n.cents) > tolA) n.estado = 'afin';
       else n.estado = 'bien';
       // el músico va a su aire: el reloj se adapta poco a poco a su pulso (y al retraso del micrófono)
       if (alturaBien && n.delta !== null) offset = u.clamp(offset + 0.3 * n.delta, -0.6, 0.6);

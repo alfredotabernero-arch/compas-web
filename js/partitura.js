@@ -101,6 +101,26 @@
   }
   function limpiar(lista) { lista.forEach(n => pintar(n, null)); }
 
+  /**
+   * Renglón (sistema) de la partitura en que está una nota: { arriba, abajo, siguiente } en píxeles desde
+   * lo alto del dibujo; siguiente es el renglón de debajo (o null). null si no se puede saber.
+   */
+  function renglon(osmd, n) {
+    try {
+      const gn = n.gnotes[0];
+      if (!gn) return null;
+      const sys = gn.parentVoiceEntry.parentStaffEntry.parentMeasure.ParentStaffLine.ParentMusicSystem;
+      const z = 10 * osmd.Zoom;
+      const caja = s => { const ps = s.PositionAndShape; return { arriba: (ps.AbsolutePosition.y + ps.BorderMarginTop) * z, abajo: (ps.AbsolutePosition.y + ps.BorderMarginBottom) * z }; };
+      const todos = [];
+      osmd.GraphicSheet.MusicPages.forEach(pg => pg.MusicSystems.forEach(s => todos.push(s)));
+      const i = todos.indexOf(sys);
+      const r = caja(sys);
+      r.siguiente = i >= 0 && i + 1 < todos.length ? caja(todos[i + 1]) : null;
+      return r;
+    } catch (e) { return null; }
+  }
+
   /** Compás (número) en el que se ha tocado un punto de la partitura, o null */
   function compasEn(osmd, x, y) {
     try {
@@ -116,5 +136,5 @@
     return null;
   }
 
-  A.partitura = { binaria, cargar, info, dibujar, notas, elementos, pintar, limpiar, compasEn };
+  A.partitura = { binaria, cargar, info, dibujar, notas, elementos, pintar, limpiar, compasEn, renglon };
 })(window.Compas);

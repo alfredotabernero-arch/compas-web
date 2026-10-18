@@ -113,8 +113,10 @@ window.Compas = window.Compas || {};
     return new Promise(resolve => {
       const fondo = h('div.modal-fondo');
       let hecho = false;
+      const alSalir = () => cerrar(null);
       const cerrar = v => {
         if (hecho) return; hecho = true;
+        window.removeEventListener('hashchange', alSalir);
         fondo.classList.remove('show');
         setTimeout(() => fondo.remove(), 200);
         resolve(v === undefined ? null : v);
@@ -136,6 +138,8 @@ window.Compas = window.Compas || {};
         pie);
       fondo.appendChild(caja);
       fondo.addEventListener('click', e => { if (e.target === fondo) cerrar(null); });
+      // al cambiar de pantalla (Atrás, menú), el aviso se cierra solo
+      window.addEventListener('hashchange', alSalir);
       document.body.appendChild(fondo);
       requestAnimationFrame(() => fondo.classList.add('show'));
       const primero = caja.querySelector('input,select,textarea');
