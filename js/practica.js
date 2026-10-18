@@ -21,7 +21,7 @@
 
   /**
    * Crea una práctica.
-   * o: { notas, bpm (negras por minuto), num, den, cuentaPrevia, metronomo, tolTiempo (s), tolAfin (cents), ignorarOctava, retraso (s), la,
+   * o: { notas, bpm (negras por minuto), num, den, compasesPrevios (0–4), metronomo, tolTiempo (s), tolAfin (cents), ignorarOctava, retraso (s), la,
    *      alActual(n), alNota(n), alFin(resultado), alCuenta(numero|null) }
    */
   function crear(o) {
@@ -157,10 +157,10 @@
         fuente.connect(an);
         buf = new Float32Array(an.fftSize);
         const pulso = 60 / o.bpm * (4 / o.den);          // duración de un pulso del compás
-        const golpes = o.cuentaPrevia ? o.num : 0;
+        const golpes = u.clamp(Math.round(o.compasesPrevios || 0), 0, 4) * o.num;   // cuenta previa: de 0 a 4 compases
         const t = c.currentTime + 0.4;
         for (let i = 0; i < golpes; i++) {
-          clic(t + i * pulso, i === 0);
+          clic(t + i * pulso, i % o.num === 0);
           if (o.alCuenta) setTimeout(() => !fin && o.alCuenta(golpes - i), (t + i * pulso - c.currentTime) * 1000);
         }
         inicio = t + golpes * pulso;
@@ -306,7 +306,7 @@
 
   /**
    * Toca las notas al tempo indicado y avisa de la que suena.
-   * o: { notas, bpm, num, den, la, instrumento, cuentaPrevia, alCuenta(k|null), alActual(n), alFin() }
+   * o: { notas, bpm, num, den, la, instrumento, compasesPrevios, alCuenta(k|null), alActual(n), alFin() }
    */
   function sonar(o) {
     const c = contexto();
@@ -335,10 +335,10 @@
         try { b = await banco(inst.archivo); } catch (e) { console.error(e); }
         if (fin) return;
         const pulso = 60 / o.bpm * (4 / o.den);
-        const golpes = o.cuentaPrevia ? o.num : 0;
+        const golpes = u.clamp(Math.round(o.compasesPrevios || 0), 0, 4) * o.num;   // cuenta previa: de 0 a 4 compases
         const t = c.currentTime + 0.3;
         for (let i = 0; i < golpes; i++) {
-          clic(t + i * pulso, i === 0);
+          clic(t + i * pulso, i % o.num === 0);
           if (o.alCuenta) setTimeout(() => !fin && o.alCuenta(golpes - i), (t + i * pulso - c.currentTime) * 1000);
         }
         inicio = t + golpes * pulso;

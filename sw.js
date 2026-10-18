@@ -1,5 +1,5 @@
 /* Compás — funciona sin conexión */
-const CACHE = 'compas-v0.1.8';
+const CACHE = 'compas-v0.1.9';
 const ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'css/compas.css',
   'js/vendor/capacitor.js', 'js/vendor/opensheetmusicdisplay.min.js', 'js/util.js', 'js/iconos.js', 'js/nativo.js', 'js/pitch.js', 'js/db.js',
   'js/partitura.js', 'js/practica.js', 'js/app.js',

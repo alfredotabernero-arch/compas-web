@@ -128,3 +128,8 @@ nav.lateral { display: none; }
 .c-zoom > svg { width: 18px; height: 18px; opacity: .7; }
 .c-zoom .btn-icono { font-size: 1.25rem; font-weight: 800; width: 38px; height: 38px; }
 .c-zoom-txt { min-width: 48px; text-align: center; font-size: .86rem; font-variant-numeric: tabular-nums; }
+
+/* ======================= 0.1.9: cuenta previa de 0 a 4 compases ======================= */
+.c-previa-fila { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; }
+.c-previa-fila .c-previa { flex: 1; }
+.c-previa button { min-width: 0; padding-left: 4px; padding-right: 4px; }

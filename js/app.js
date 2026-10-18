@@ -6,13 +6,16 @@
   const icono = A.icono;
 
   /* ======================= Ajustes ======================= */
-  const AJ_DEF = { la: 442, tolTiempo: 200, tolAfin: 40, ignorarOctava: true, retraso: 80, cuentaPrevia: true, metronomo: false, tema: 'auto', instrumento: 'auto', pasarPagina: true };
+  const AJ_DEF = { la: 442, tolTiempo: 200, tolAfin: 40, ignorarOctava: true, retraso: 80, compasesPrevios: 1, metronomo: false, tema: 'auto', instrumento: 'auto', pasarPagina: true };
   let aj = Object.assign({}, AJ_DEF);
   async function cargarAjustes() {
     const g = await DB.kvGet('ajustes', {});
     // 0.1.8: la exigencia pasa de tres botones a deslizadores (solo se respeta la «estricta»; las otras eran demasiado exigentes)
     if (g.tolTiempo == null && g.tolerancia === 'estricta') g.tolTiempo = 70;
     delete g.tolerancia;
+    // 0.1.9: la cuenta previa pasa de sí/no a un número de compases
+    if (g.compasesPrevios == null && g.cuentaPrevia === false) g.compasesPrevios = 0;
+    delete g.cuentaPrevia;
     aj = Object.assign({}, AJ_DEF, g); aplicarTema();
   }
   async function guardarAjustes() { await DB.kvSet('ajustes', aj); aplicarTema(); }
@@ -179,6 +182,16 @@
     deslizador('Exigencia con la afinación', 'tolAfin', 10, 50, 5, 'cents', nivelA,
       conAyuda ? 'Cuánto puede desviarse cada nota de la afinación justa (100 cents son un semitono; con 50 solo cuenta que sea la nota correcta).' : null, alCambiar)];
 
+  /* ---------- cuenta previa (0.1.9): de 0 a 4 compases ---------- */
+  function cuentaPrevia(alCambiar) {
+    const caja = h('div.segmentado.c-previa');
+    const pintar = () => caja.replaceChildren(...[0, 1, 2, 3, 4].map(k =>
+      h('button' + (aj.compasesPrevios === k ? '.on' : ''), { type: 'button', title: k ? k + (k > 1 ? ' compases' : ' compás') + ' de cuenta' : 'Sin cuenta previa',
+        onclick: async () => { aj.compasesPrevios = k; await guardarAjustes(); pintar(); alCambiar && alCambiar(); } }, k ? String(k) : 'No')));
+    pintar();
+    return caja;
+  }
+
   const color = v => v == null ? 'var(--tinta-3)' : v < 50 ? '#FF5A5F' : v < 75 ? '#F5B400' : '#22C27A';
 
   /* ======================= Partitura y práctica ======================= */
@@ -252,6 +265,7 @@
               h('button.btn-icono.redondo', { 'aria-label': 'Más lento', onclick: () => setBpm(bpm - 4) }, icono('menos')), bpmEl,
               h('button.btn-icono.redondo', { 'aria-label': 'Más rápido', onclick: () => setBpm(bpm + 4) }, icono('mas'))), pctEl)),
         h('p.mini.tenue', { style: { margin: '6px 0 10px' } }, 'Toca un compás de la partitura para empezar desde él; con dos toques eliges el tramo.'),
+        h('div.c-previa-fila', h('span.mini.tenue', 'Cuenta previa'), cuentaPrevia(), h('span.mini.tenue', 'compases')),
         exigDet, btnTocar, h('div.c-oir-fila', btnOir, h('label.c-inst-lab', h('span.mini.tenue', 'Suena como'), selInst)), estado), hoja);
 
       // ---------- partitura
@@ -337,7 +351,7 @@
           estado.textContent = '';
         };
         sonando = A.practica.sonar({
-          notas, bpm, num: info.num, den: info.den, la: aj.la, cuentaPrevia: aj.cuentaPrevia,
+          notas, bpm, num: info.num, den: info.den, la: aj.la, compasesPrevios: aj.compasesPrevios,
           instrumento: aj.instrumento in A.practica.INSTRUMENTOS ? aj.instrumento : A.practica.instrumentoAuto(parte.nombre, notas),
           alCuenta: k => { if (k) { cuenta.textContent = k; cuenta.classList.add('on'); } else cuenta.classList.remove('on'); },
           alActual: n => {
@@ -374,7 +388,7 @@
         if (!notas.some(n => n.midi !== null)) { u.toast('No hay notas en esos compases'); return; }
         practica = A.practica.crear({
           notas, bpm, num: info.num, den: info.den, la: aj.la, tolTiempo: aj.tolTiempo / 1000, tolAfin: aj.tolAfin, ignorarOctava: aj.ignorarOctava,
-          retraso: aj.retraso / 1000, cuentaPrevia: aj.cuentaPrevia, metronomo: aj.metronomo,
+          retraso: aj.retraso / 1000, compasesPrevios: aj.compasesPrevios, metronomo: aj.metronomo,
           alCuenta: k => { if (k) { cuenta.textContent = k; cuenta.classList.add('on'); } else cuenta.classList.remove('on'); },
           alActual: n => {
             if (n.midi === null) return;
@@ -461,7 +475,8 @@
           exigencia(null, true),
           inter('Pasar la página sola mientras tocas', aj.pasarPagina, async v => { aj.pasarPagina = v; await guardarAjustes(); }),
           h('p.mini.tenue', { style: { margin: '0 0 8px' } }, 'Si el tramo no cabe en la pantalla, cuando llegas al último renglón que se ve, ese renglón sube arriba del todo y aparecen los siguientes.'),
-          inter('Cuenta previa de un compás', aj.cuentaPrevia, async v => { aj.cuentaPrevia = v; await guardarAjustes(); }),
+          h('div.mini', { style: { fontWeight: 800, margin: '8px 0 6px' } }, 'Cuenta previa (compases de metrónomo antes de empezar)'),
+          cuentaPrevia(),
           inter('Metrónomo mientras tocas', aj.metronomo, async v => { aj.metronomo = v; await guardarAjustes(); }),
           h('p.mini.tenue', { style: { margin: '0 0 8px' } }, 'Mejor con auriculares: si el móvil oye el metrónomo, puede confundirlo con tus notas.'),
           inter('No tener en cuenta la octava', aj.ignorarOctava, async v => { aj.ignorarOctava = v; await guardarAjustes(); }),
