@@ -16,12 +16,62 @@
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
     o.connect(g); g.connect(c.destination);
     o.start(t); o.stop(t + 0.06);
+    return o;
+  }
+
+  /**
+   * Metrónomo (0.1.10): cuenta previa y, si se pide, clics mientras se toca. Los clics se programan poco a poco
+   * (un instante por delante), así que «Parar» lo corta en el acto.
+   * o: { pulso (s), num, desde (instante del primer clic), previos (golpes de cuenta), hasta (fin de los clics, o null = solo la cuenta),
+   *      acentos [bool por parte], modoCuenta ('atras'|'partes'), alCuenta(texto|null) }
+   */
+  function metronomo(o) {
+    const c = contexto();
+    const osc = [], avisos = [];
+    let k = 0, parado = false;
+    const acento = i => !!(o.acentos && o.acentos[i % o.num]);
+    const total = () => (o.hasta == null ? o.previos : o.previos + Math.max(0, Math.ceil((o.hasta - (o.desde + o.previos * o.pulso)) / o.pulso - 1e-6)));
+    const n = total();
+    function programar() {
+      if (parado) return;
+      const limite = c.currentTime + 0.15;
+      while (k < n) {
+        const t = o.desde + k * o.pulso;
+        if (t > limite) break;
+        const i = k;
+        osc.push(clic(t, acento(i)));
+        if (i < o.previos && o.alCuenta) {
+          const txt = o.modoCuenta === 'partes' ? String(i % o.num + 1) : String(o.previos - i);
+          avisos.push(setTimeout(() => !parado && o.alCuenta(txt, acento(i)), Math.max(0, (t - c.currentTime) * 1000)));
+        }
+        k++;
+      }
+      while (osc.length > 16) osc.shift();
+    }
+    if (o.previos && o.alCuenta) avisos.push(setTimeout(() => !parado && o.alCuenta(null), Math.max(0, (o.desde + o.previos * o.pulso - c.currentTime) * 1000)));
+    programar();
+    const timer = setInterval(programar, 25);
+    return {
+      parar() {
+        if (parado) return;
+        parado = true; clearInterval(timer); avisos.forEach(clearTimeout);
+        const ahora = c.currentTime;
+        osc.forEach(x => { try { x.stop(ahora); } catch (e) {} });
+        if (o.alCuenta) o.alCuenta(null);
+      }
+    };
+  }
+
+  /** Acentos por defecto de un compás: la primera parte; en 6/8, 9/8 y 12/8, también el principio de cada grupo de tres */
+  function acentosPorDefecto(num, den) {
+    const compuesto = den === 8 && num > 3 && num % 3 === 0;
+    return Array.from({ length: num }, (_, i) => i === 0 || (compuesto && i % 3 === 0));
   }
 
 
   /**
    * Crea una práctica.
-   * o: { notas, bpm (negras por minuto), num, den, compasesPrevios (0–4), metronomo, tolTiempo (s), tolAfin (cents), ignorarOctava, retraso (s), la,
+   * o: { notas, bpm (negras por minuto), num, den, compasesPrevios (0–4), modoCuenta, acentos, metronomo, tolTiempo (s), tolAfin (cents), ignorarOctava, retraso (s), la,
    *      alActual(n), alNota(n), alFin(resultado), alCuenta(numero|null) }
    */
   function crear(o) {
@@ -29,7 +79,7 @@
     const secRedonda = 4 * 60 / o.bpm;
     const t0n = o.notas.length ? o.notas[0].t : 0;
     const tolT = o.tolTiempo || 0.2, tolA = o.tolAfin || 40;
-    let stream = null, fuente = null, an = null, buf = null, timer = 0, inicio = 0, fin = false;
+    let stream = null, fuente = null, an = null, buf = null, timer = 0, inicio = 0, fin = false, metro = null;
     const marcos = [];        // { t, rms, midi|null }
     const ataques = [];
     let suelo = null, ultimoAtaque = -1, estable = null, cand = null, candN = 0;
@@ -134,6 +184,7 @@
 
     function soltar() {
       clearInterval(timer);
+      if (metro) { metro.parar(); metro = null; }
       try { fuente && fuente.disconnect(); } catch (e) {}
       if (stream) stream.getTracks().forEach(t => t.stop());
       an = null;
@@ -159,16 +210,9 @@
         const pulso = 60 / o.bpm * (4 / o.den);          // duración de un pulso del compás
         const golpes = u.clamp(Math.round(o.compasesPrevios || 0), 0, 4) * o.num;   // cuenta previa: de 0 a 4 compases
         const t = c.currentTime + 0.4;
-        for (let i = 0; i < golpes; i++) {
-          clic(t + i * pulso, i % o.num === 0);
-          if (o.alCuenta) setTimeout(() => !fin && o.alCuenta(golpes - i), (t + i * pulso - c.currentTime) * 1000);
-        }
         inicio = t + golpes * pulso;
-        setTimeout(() => !fin && o.alCuenta && o.alCuenta(null), (inicio - c.currentTime) * 1000);
-        if (o.metronomo && notas.length) {
-          const finT = finNota(notas[notas.length - 1]);
-          for (let k = 0, tt = inicio; tt < finT; k++, tt += pulso) clic(tt, k % o.num === 0);
-        }
+        metro = metronomo({ pulso, num: o.num, desde: t, previos: golpes, hasta: o.metronomo && notas.length ? finNota(notas[notas.length - 1]) : null,
+          acentos: o.acentos || acentosPorDefecto(o.num, o.den), modoCuenta: o.modoCuenta, alCuenta: o.alCuenta });
         timer = setInterval(analizar, 20);
       },
       parar: () => terminar(),
@@ -306,7 +350,7 @@
 
   /**
    * Toca las notas al tempo indicado y avisa de la que suena.
-   * o: { notas, bpm, num, den, la, instrumento, compasesPrevios, alCuenta(k|null), alActual(n), alFin() }
+   * o: { notas, bpm, num, den, la, instrumento, compasesPrevios, modoCuenta, acentos, alCuenta(texto|null), alActual(n), alFin() }
    */
   function sonar(o) {
     const c = contexto();
@@ -316,12 +360,13 @@
     const inst = INSTRUMENTOS[o.instrumento] || INSTRUMENTOS.bandurria;
     const salida = c.createGain(); salida.gain.value = 2.2;
     const comp = c.createDynamicsCompressor(); salida.connect(comp); comp.connect(c.destination);
-    let fin = false, timer = 0, actual = -1, inicio = 0;
+    let fin = false, timer = 0, actual = -1, inicio = 0, metro = null;
     const fuentes = [];
     const ini = n => inicio + (n.t - t0n) * secRedonda;
     function parar(avisar) {
       if (fin) return;
       fin = true; clearInterval(timer);
+      if (metro) metro.parar();
       const ahora = c.currentTime;
       salida.gain.cancelScheduledValues(ahora); salida.gain.setValueAtTime(salida.gain.value, ahora); salida.gain.linearRampToValueAtTime(0, ahora + 0.05);
       setTimeout(() => { fuentes.forEach(x => { try { x.stop(); } catch (e) {} }); try { comp.disconnect(); } catch (e) {} }, 120);
@@ -337,12 +382,9 @@
         const pulso = 60 / o.bpm * (4 / o.den);
         const golpes = u.clamp(Math.round(o.compasesPrevios || 0), 0, 4) * o.num;   // cuenta previa: de 0 a 4 compases
         const t = c.currentTime + 0.3;
-        for (let i = 0; i < golpes; i++) {
-          clic(t + i * pulso, i % o.num === 0);
-          if (o.alCuenta) setTimeout(() => !fin && o.alCuenta(golpes - i), (t + i * pulso - c.currentTime) * 1000);
-        }
         inicio = t + golpes * pulso;
-        setTimeout(() => !fin && o.alCuenta && o.alCuenta(null), (inicio - c.currentTime) * 1000);
+        if (golpes) metro = metronomo({ pulso, num: o.num, desde: t, previos: golpes, hasta: null,
+          acentos: o.acentos || acentosPorDefecto(o.num, o.den), modoCuenta: o.modoCuenta, alCuenta: o.alCuenta });
         notas.forEach(n => {
           if (n.midi === null) return;
           const midi = n.midi + (inst.oct || 0), d = n.dur * secRedonda;
@@ -362,5 +404,5 @@
     };
   }
 
-  A.practica = { crear, contexto, clic, sonar, instrumentoAuto, INSTRUMENTOS, banco };
+  A.practica = { crear, contexto, clic, metronomo, acentosPorDefecto, sonar, instrumentoAuto, INSTRUMENTOS, banco };
 })(window.Compas);

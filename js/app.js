@@ -6,7 +6,7 @@
   const icono = A.icono;
 
   /* ======================= Ajustes ======================= */
-  const AJ_DEF = { la: 442, tolTiempo: 200, tolAfin: 40, ignorarOctava: true, retraso: 80, compasesPrevios: 1, metronomo: false, tema: 'auto', instrumento: 'auto', pasarPagina: true };
+  const AJ_DEF = { la: 442, tolTiempo: 200, tolAfin: 40, ignorarOctava: true, retraso: 80, compasesPrevios: 1, modoCuenta: 'atras', acentos: {}, metronomo: false, tema: 'auto', instrumento: 'auto', pasarPagina: true };
   let aj = Object.assign({}, AJ_DEF);
   async function cargarAjustes() {
     const g = await DB.kvGet('ajustes', {});
@@ -192,6 +192,37 @@
     return caja;
   }
 
+  /* ---------- cómo se cuenta y acentos de cada parte (0.1.10) ---------- */
+  function modoCuentaUI() {
+    const caja = h('div.segmentado.c-modo');
+    const pintar = () => caja.replaceChildren(...[['atras', 'Cuenta atrás'], ['partes', 'Las partes: 1, 2, 3…']].map(([v, t]) =>
+      h('button' + (aj.modoCuenta === v ? '.on' : ''), { type: 'button', onclick: async () => { aj.modoCuenta = v; await guardarAjustes(); pintar(); } }, t)));
+    pintar();
+    return caja;
+  }
+  const claveCompas = (num, den) => num + '/' + den;
+  const acentosDe = (num, den) => {
+    const g = aj.acentos && aj.acentos[claveCompas(num, den)];
+    return Array.isArray(g) && g.length === num ? g : A.practica.acentosPorDefecto(num, den);
+  };
+  function acentosUI(num, den) {
+    const caja = h('div.c-acentos', { role: 'group', 'aria-label': 'Acentos de cada parte' });
+    const pintar = () => {
+      const ac = acentosDe(num, den);
+      caja.replaceChildren(...ac.map((on, i) => h('button' + (on ? '.on' : ''), {
+        type: 'button', title: 'Parte ' + (i + 1) + (on ? ': con acento' : ': sin acento'), 'aria-pressed': on ? 'true' : 'false',
+        onclick: async () => { const n = acentosDe(num, den).slice(); n[i] = !n[i]; aj.acentos = Object.assign({}, aj.acentos, { [claveCompas(num, den)]: n }); await guardarAjustes(); pintar(); }
+      }, String(i + 1))));
+    };
+    pintar();
+    return caja;
+  }
+  // el número de la cuenta previa, en grande; el de las partes con acento, más marcado
+  const mostrarCuenta = cuenta => (txt, fuerte) => {
+    if (txt) { cuenta.textContent = txt; cuenta.classList.toggle('fuerte', !!fuerte); cuenta.classList.add('on'); }
+    else cuenta.classList.remove('on');
+  };
+
   const color = v => v == null ? 'var(--tinta-3)' : v < 50 ? '#FF5A5F' : v < 75 ? '#F5B400' : '#22C27A';
 
   /* ======================= Partitura y práctica ======================= */
@@ -266,6 +297,8 @@
               h('button.btn-icono.redondo', { 'aria-label': 'Más rápido', onclick: () => setBpm(bpm + 4) }, icono('mas'))), pctEl)),
         h('p.mini.tenue', { style: { margin: '6px 0 10px' } }, 'Toca un compás de la partitura para empezar desde él; con dos toques eliges el tramo.'),
         h('div.c-previa-fila', h('span.mini.tenue', 'Cuenta previa'), cuentaPrevia(), h('span.mini.tenue', 'compases')),
+        h('div.c-previa-fila', h('span.mini.tenue', 'Contar'), modoCuentaUI()),
+        h('div.c-previa-fila', h('span.mini.tenue', 'Acentos'), acentosUI(info.num, info.den), h('span.mini.tenue', info.num + '/' + info.den)),
         exigDet, btnTocar, h('div.c-oir-fila', btnOir, h('label.c-inst-lab', h('span.mini.tenue', 'Suena como'), selInst)), estado), hoja);
 
       // ---------- partitura
@@ -351,9 +384,9 @@
           estado.textContent = '';
         };
         sonando = A.practica.sonar({
-          notas, bpm, num: info.num, den: info.den, la: aj.la, compasesPrevios: aj.compasesPrevios,
+          notas, bpm, num: info.num, den: info.den, la: aj.la, compasesPrevios: aj.compasesPrevios, modoCuenta: aj.modoCuenta, acentos: acentosDe(info.num, info.den),
           instrumento: aj.instrumento in A.practica.INSTRUMENTOS ? aj.instrumento : A.practica.instrumentoAuto(parte.nombre, notas),
-          alCuenta: k => { if (k) { cuenta.textContent = k; cuenta.classList.add('on'); } else cuenta.classList.remove('on'); },
+          alCuenta: mostrarCuenta(cuenta),
           alActual: n => {
             if (previa) A.partitura.pintar(previa, null);
             if (n.midi === null) { previa = null; return; }
@@ -388,8 +421,8 @@
         if (!notas.some(n => n.midi !== null)) { u.toast('No hay notas en esos compases'); return; }
         practica = A.practica.crear({
           notas, bpm, num: info.num, den: info.den, la: aj.la, tolTiempo: aj.tolTiempo / 1000, tolAfin: aj.tolAfin, ignorarOctava: aj.ignorarOctava,
-          retraso: aj.retraso / 1000, compasesPrevios: aj.compasesPrevios, metronomo: aj.metronomo,
-          alCuenta: k => { if (k) { cuenta.textContent = k; cuenta.classList.add('on'); } else cuenta.classList.remove('on'); },
+          retraso: aj.retraso / 1000, compasesPrevios: aj.compasesPrevios, modoCuenta: aj.modoCuenta, acentos: acentosDe(info.num, info.den), metronomo: aj.metronomo,
+          alCuenta: mostrarCuenta(cuenta),
           alActual: n => {
             if (n.midi === null) return;
             A.partitura.pintar(n, 'n-actual');
@@ -477,6 +510,9 @@
           h('p.mini.tenue', { style: { margin: '0 0 8px' } }, 'Si el tramo no cabe en la pantalla, cuando llegas al último renglón que se ve, ese renglón sube arriba del todo y aparecen los siguientes.'),
           h('div.mini', { style: { fontWeight: 800, margin: '8px 0 6px' } }, 'Cuenta previa (compases de metrónomo antes de empezar)'),
           cuentaPrevia(),
+          h('div.mini', { style: { fontWeight: 800, margin: '10px 0 6px' } }, 'Cómo se cuenta'),
+          modoCuentaUI(),
+          h('p.mini.tenue', { style: { margin: '4px 0 8px' } }, 'Cuenta atrás: 6, 5, 4… 1 (lo que falta para empezar). Las partes: 1, 2, 3, 1, 2, 3 en un 3/4. Los acentos de cada parte se eligen junto a Tocar, para cada tipo de compás (3/4, 4/4, 6/8…), y valen para la cuenta previa y para el metrónomo mientras tocas.'),
           inter('Metrónomo mientras tocas', aj.metronomo, async v => { aj.metronomo = v; await guardarAjustes(); }),
           h('p.mini.tenue', { style: { margin: '0 0 8px' } }, 'Mejor con auriculares: si el móvil oye el metrónomo, puede confundirlo con tus notas.'),
           inter('No tener en cuenta la octava', aj.ignorarOctava, async v => { aj.ignorarOctava = v; await guardarAjustes(); }),

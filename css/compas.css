@@ -133,3 +133,12 @@ nav.lateral { display: none; }
 .c-previa-fila { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; }
 .c-previa-fila .c-previa { flex: 1; }
 .c-previa button { min-width: 0; padding-left: 4px; padding-right: 4px; }
+
+/* ======================= 0.1.10: cómo se cuenta y acentos ======================= */
+.c-modo { flex: 1; }
+.c-modo button { font-size: .82rem; padding-left: 6px; padding-right: 6px; }
+.c-acentos { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.c-acentos button { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--borde); background: var(--superficie, #fff); color: var(--tinta-2, #666); font: inherit; font-weight: 800; cursor: pointer; }
+.c-acentos button.on { background: var(--primario); border-color: var(--primario); color: #fff; }
+.c-cuenta.fuerte { font-size: 11rem; }
+.c-cuenta:not(.fuerte) { opacity: .75; }
